@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -6,8 +6,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'widgets/nine_patch_image.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -31,6 +33,8 @@ import '../../services/dynamic_config_service.dart';
 import '../../services/global_banner_service.dart';
 import '../../services/pusher_service.dart';
 import '../../services/supabase_realtime_service.dart';
+import '../../services/proto_gift_push_service.dart';
+import '../../features/protocol/realtime_push.pb.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/room_audio_service.dart';
 import '../../services/room_state_service.dart';
@@ -78,6 +82,7 @@ import '../report/report_user_screen.dart';
 import '../../features/lucky_gift/services/lucky_gift_service.dart';
 import '../../features/lucky_gift/models/lucky_gift_model.dart';
 import '../../features/lucky_gift/widgets/gift_seat_flight_overlay.dart';
+import '../../features/lucky_gift/widgets/lucky_win_video_banner.dart';
 import '../../features/lucky_bag/models/lucky_bag_model.dart';
 import '../../features/lucky_bag/services/lucky_bag_service.dart';
 import '../../features/lucky_bag/widgets/lucky_bag_send_dialog.dart';
@@ -177,6 +182,91 @@ Future<void> navigateToRoom(
   }
 
   if (!context.mounted) return;
+
+  RoomModel? freshRoom;
+  Map<int, Map<String, dynamic>>? freshSeatsMap;
+
+  if (!isReentry) {
+    BuildContext? dialogCtx;
+    bool dialogDismissed = false;
+    void dismissLoading() {
+      if (!dialogDismissed && dialogCtx != null && dialogCtx!.mounted) {
+        dialogDismissed = true;
+        Navigator.of(dialogCtx!, rootNavigator: true).pop();
+      }
+    }
+
+    // عرض مؤشر التحميل شفاف بالكامل فور الضغط على الغرفة
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      useRootNavigator: true,
+      builder: (ctx) {
+        dialogCtx = ctx;
+        return const PopScope(
+          canPop: false,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD3A350)),
+                  ),
+                ),
+                SizedBox(height: 12),
+                DText(
+                  'جاري التحميل...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black,
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      // إزالة الكاش القديم للمقاعد لتفادي ظهور مقاعد وهمية
+      RoomScreen.cachedRoomSeatMaps.remove(roomId);
+      RoomScreen.sharedPrefs?.remove('room_seats_map_$roomId');
+
+      final results = await Future.wait([
+        SupabaseDataService().getRoom(roomId),
+        SupabaseDataService().getSeats(roomId),
+      ]).timeout(const Duration(milliseconds: 2500));
+
+      freshRoom = results[0] as RoomModel?;
+      freshSeatsMap = results[1] as Map<int, Map<String, dynamic>>?;
+
+      if (freshRoom != null) {
+        RoomScreen.cachedRoomSeatCount[roomId] = freshRoom.seatCount;
+        RoomScreen.cachedRoomSeatStyle[roomId] = freshRoom.seatStyle;
+      }
+      if (freshSeatsMap != null) {
+        RoomScreen.cachedRoomSeatMaps[roomId] = freshSeatsMap;
+      }
+    } catch (_) {}
+
+    dismissLoading();
+  }
+
+  if (!context.mounted) return;
   final route = MaterialPageRoute(
     settings: const RouteSettings(name: RoomScreen.routeName),
     builder: (_) => RoomScreen(
@@ -191,6 +281,8 @@ Future<void> navigateToRoom(
       initialSeatIndex: restoredSeatIndex,
       wasOnSeat: wasOnSeat,
       wasMicMuted: wasMicMuted,
+      initialSeatMap: freshSeatsMap,
+      initialRoom: freshRoom,
     ),
   );
   if (!context.mounted) return;
@@ -319,6 +411,28 @@ class _RoomGiftNotice {
   });
 }
 
+/// استعادة كاش مقاعد الغرف على isolate منفصل: فكّ JSON لكل غرفة زارها المستخدم
+/// كان يتم متزامناً على الـ UI isolate عند كل إقلاع (ANR/jank محتمل).
+Map<String, Map<int, Map<String, dynamic>>> _decodeCachedSeatMaps(
+  List<MapEntry<String, String>> rawEntries,
+) {
+  final result = <String, Map<int, Map<String, dynamic>>>{};
+  for (final e in rawEntries) {
+    try {
+      final decoded = jsonDecode(e.value) as Map<String, dynamic>;
+      final restored = <int, Map<String, dynamic>>{};
+      decoded.forEach((key, value) {
+        final idx = int.tryParse(key);
+        if (idx != null && value is Map) {
+          restored[idx] = Map<String, dynamic>.from(value);
+        }
+      });
+      if (restored.isNotEmpty) result[e.key] = restored;
+    } catch (_) {}
+  }
+  return result;
+}
+
 // fragment_chat_room.xml
 class RoomScreen extends StatefulWidget {
   static DateTime _lastPushAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -339,6 +453,7 @@ class RoomScreen extends StatefulWidget {
     try {
       sharedPrefs = await SharedPreferences.getInstance();
       final keys = sharedPrefs?.getKeys() ?? {};
+      final seatRawEntries = <MapEntry<String, String>>[];
       for (final k in keys) {
         if (k.startsWith('room_seat_style_')) {
           final rId = k.replaceFirst('room_seat_style_', '');
@@ -356,18 +471,13 @@ class RoomScreen extends StatefulWidget {
           final rId = k.replaceFirst('room_seats_map_', '');
           final raw = sharedPrefs!.getString(k);
           if (raw == null || raw.isEmpty) continue;
-          try {
-            final decoded = jsonDecode(raw) as Map<String, dynamic>;
-            final restored = <int, Map<String, dynamic>>{};
-            decoded.forEach((key, value) {
-              final idx = int.tryParse(key);
-              if (idx != null && value is Map) {
-                restored[idx] = Map<String, dynamic>.from(value);
-              }
-            });
-            if (restored.isNotEmpty) cachedRoomSeatMaps[rId] = restored;
-          } catch (_) {}
+          seatRawEntries.add(MapEntry(rId, raw));
         }
+      }
+      if (seatRawEntries.isNotEmpty) {
+        cachedRoomSeatMaps.addAll(
+          await compute(_decodeCachedSeatMaps, seatRawEntries),
+        );
       }
     } catch (_) {}
   }
@@ -440,6 +550,8 @@ class RoomScreen extends StatefulWidget {
   final int? initialSeatIndex;
   final bool wasOnSeat;
   final bool wasMicMuted;
+  final Map<int, Map<String, dynamic>>? initialSeatMap;
+  final RoomModel? initialRoom;
 
   const RoomScreen({
     super.key,
@@ -454,6 +566,8 @@ class RoomScreen extends StatefulWidget {
     this.initialSeatIndex,
     this.wasOnSeat = false,
     this.wasMicMuted = false,
+    this.initialSeatMap,
+    this.initialRoom,
   });
 
   @override
@@ -462,7 +576,7 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // ── UI state ──────────────────────────────────────────────────
-  bool _isMicOn = true;
+  bool _isMicOn = false; // ✅ افتراضياً مقفل حتى يصعد المستخدم إلى المقعد بنفسه
   bool _showGift = false;
   final ValueNotifier<Map<String, dynamic>?> _giftAnimNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   String? _giftAnimAsset;
@@ -510,12 +624,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final delta = giftValue * (giftCount <= 0 ? 1 : giftCount);
     final targets = receiverIds.where((e) => e.isNotEmpty).toSet();
     if (targets.isEmpty) return;
+    final charmTotals = <String, int>{};
     setState(() {
       for (final rid in targets) {
         final next = (_giftReceiverTotals[rid] ?? 0) + delta;
         _giftReceiverTotals[rid] = next;
         _pendingCharmCredits[rid] = (_pendingCharmCredits[rid] ?? 0) + delta;
         _pendingCharmCreditsAt[rid] = DateTime.now().millisecondsSinceEpoch;
+        charmTotals[rid] = next;
         for (int i = 0; i < _seats.length; i++) {
           final seat = _seats[i];
           if (seat.user?.id == rid) {
@@ -529,6 +645,28 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           }
         }
       }
+    });
+    // ⚡ نفس سرعة Hijoy: الكاريزما تُبث من الذاكرة لحظة الإرسال، فتحدّث
+    //    ترتيب المقاعد عند كل من في الغرفة بدون انتظار صف sent_gifts.
+    for (final entry in charmTotals.entries) {
+      unawaited(ProtoGiftPushService.instance.sendRoomCharm(
+        roomId: widget.roomId,
+        userId: entry.key,
+        delta: delta,
+        total: entry.value,
+      ));
+    }
+  }
+
+  /// إزالة أثر إطار هدية بُث استباقياً ثم فشل خصمها.
+  void _removeRealtimeGiftMessage(String msgId) {
+    if (msgId.isEmpty || !mounted) return;
+    final idx = _chatMessages.indexWhere((m) => m.msgId == msgId);
+    if (idx == -1) return;
+    setState(() {
+      _chatMessages.removeAt(idx);
+      _msgCount = _chatMessages.length;
+      _chatUpdateNotifier.value++;
     });
   }
 
@@ -719,6 +857,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // (قائمة مستقلة لكل إرسال حتى تظهر الهدية في كل مرة حتى مع الإرسال المتتابع)
   final List<_GiftFlightInstance> _giftFlights = [];
   int _giftFlightSeq = 0;
+  /// مفتاح الـ Stack الذي يُرسم فيه طيران الهدية — لتحويل إحداثيات
+  /// المقاعد من global إلى إحداثيات هذا الـ Stack (يمنع الانحراف أسفل المقعد).
+  final GlobalKey _flightStackKey = GlobalKey();
   Map<String, dynamic>? _pendingBannerData;
 
   // ── Floating Combo Button state ──
@@ -740,23 +881,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Future<void> _playGiftArrivalSound() async {
     try {
       HapticFeedback.lightImpact();
-      _giftAudioPlayer ??= AudioPlayer();
-
-      final remoteUrl = DynamicConfigService().getAssetUrl('gift_sound') ??
-          DynamicConfigService().getAssetUrl('gift') ??
-          DynamicConfigService().getAssetOverride('assets/sounds/key_music.mp3');
-
-      if (remoteUrl != null && remoteUrl.isNotEmpty) {
-        await _giftAudioPlayer!.setUrl(remoteUrl);
-      } else {
-        await _giftAudioPlayer!.setAsset('assets/sounds/key_music.mp3');
-      }
-      await _giftAudioPlayer!.setVolume(1.0);
-      await _giftAudioPlayer!.seek(Duration.zero);
-      await _giftAudioPlayer!.play();
-    } catch (e) {
-      debugPrint('[RoomScreen] gift sound notice: $e');
-    }
+      // ✅ تم إلغاء صوت الهدية التلقائي عند الضغط على زر الهدية/الإرسال بناءً على طلبك
+      // لمنع أي تهنيج أو لاغ في الغرفة أثناء إرسال الهدايا المتتالية، وإزالة الصوت المزعج.
+    } catch (_) {}
   }
 
   Future<void> _playEntranceSound({String? animAsset}) async {
@@ -976,10 +1103,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               senderPhotoUrl: user?.photoUrl ?? '',
               receiverId: receiverId,
               receiverName: receiverName,
+              receiverPhotoUrl: r['photoUrl']?.toString() ?? '',
               value: gift.value,
               count: count,
               comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
               comboCount: comboMultiplier,
+              giftCategoryId: gift.categoryId,
             );
 
             // ✅ تحديث الرصيد والنتائج من الخادم حصرياً (Server as Source of Truth)
@@ -989,8 +1118,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 userProvider.updateCoinsImmediately(newBal);
               }
 
-              final mult = (res['multiplier'] as num?)?.toInt() ?? 0;
-              final won = (res['won_coins'] as num?)?.toInt() ?? (res['totalWon'] as num?)?.toInt() ?? 0;
+              // ✅ sendLuckyGift() يرجع maxMultiplier / wonCoins —
+              //    القراءة القديمة (multiplier / won_coins) كانت تُنتج 0 دائماً
+              //    فلا يُشغّل LuckyWinCenterVideo ولا ملف SVGA الخاص بالفوز.
+              final mult = (res['maxMultiplier'] as num?)?.toInt() ??
+                  (res['multiplier'] as num?)?.toInt() ??
+                  0;
+              final won = (res['wonCoins'] as num?)?.toInt() ??
+                  (res['won_coins'] as num?)?.toInt() ??
+                  (res['totalWon'] as num?)?.toInt() ??
+                  0;
+
+              // ✅ تشغيل صوت الفوز فوراً وبدون أي تأخير (0ms) للمستخدم الفائز
+              if (mult >= 5) {
+                unawaited(LuckyGiftService().playLuckyWinSound());
+              }
+
               final multList = (res['multipliers'] as List<dynamic>?) ?? [mult];
 
               final cards = List.generate(multList.length, (i) {
@@ -1020,6 +1163,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 senderName: user?.name ?? '',
                 senderAvatar: user?.photoUrl ?? '',
                 receiverName: receiverName,
+                receiverAvatar: r['photoUrl']?.toString() ?? '',
                 gift: luckyModel,
                 cards: cards,
                 totalWonCoins: won,
@@ -1032,6 +1176,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
               if (mounted) {
                 LuckyGiftService().enqueueLuckyGift(context, serverData);
+
+                // ✅ لافتة الحظ المخصصة من لوحة التحكم — تظهر للمرسل فوراً
+                //    (المستلمون يستلمونها عبر البث). نفس منطق المطابقة.
+                GlobalBannerService.instance.triggerLuckyBannerLocally({
+                  'multiplier': mult,
+                  'wonCoins': won,
+                  'senderPhotoUrl': user?.photoUrl ?? '',
+                  'receiverPhotoUrl': r['photoUrl']?.toString() ?? '',
+                  'senderName': user?.name ?? '',
+                  'receiverName': receiverName,
+                  'giftName': gift.name,
+                  'giftCount': count,
+                  'giftValue': gift.value,
+                  'categoryId': gift.categoryId,
+                  'defaultImage': gift.defaultImage ?? gift.iconAsset,
+                  'roomId': roomId,
+                  'roomName': widget.roomName,
+                });
 
                 // ✅ إضافة رسالة هدية الحظ فوراً في شات الغرفة للراسل (0ms تأخير)
                 final localMsgId = (res['msgId']?.toString()) ?? 'lucky_${DateTime.now().millisecondsSinceEpoch}_${user?.uid}';
@@ -1151,6 +1313,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     return R.roomGiftIc;
   }
 
+  bool _isAnimAsset(String? asset) {
+    if (asset == null || asset.isEmpty) return false;
+    final t = detectAssetType(asset);
+    return t == AssetType.svga || t == AssetType.vap || t == AssetType.mp4;
+  }
+
   void _triggerGiftFlight({
     required String iconUrl,
     String? receiverId,
@@ -1164,18 +1332,40 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode == 'ar';
     final isCircle = _roomSeatStyle == seat_model.SeatStyle.circle;
 
+    // مربع الـ Stack الذي يُرسم فيه الطيران — نحول له الإحداثيات حتى لا
+    // ينحرف الهدف (global مقابل local) فيظهر تحت المقعد على بعض الشاشات.
+    final flightBox =
+        _flightStackKey.currentContext?.findRenderObject() as RenderBox?;
+
     Offset getSeatOffset(int seatIdx) {
       final key = _seatKeys[seatIdx];
       if (key?.currentContext != null) {
         final renderBox = key!.currentContext!.findRenderObject() as RenderBox?;
         if (renderBox != null && renderBox.hasSize) {
-          final pos = renderBox.localToGlobal(Offset(renderBox.size.width / 2, renderBox.size.height / 2));
-          return pos;
+          // ✅ استهدف مركز دائرة الأفاتار المرئية (أعلى المقعد)، لا مركز
+          //    الـ render box (76x104) الذي مركزه أسفل الأفاتار بـ ~24px.
+          //    الأفاتار: أعلى بمقدار 2 + نصف حجمه (52/2=26) → Y ≈ 28.
+          final avatarCenterY = (renderBox.size.height >= 104)
+              ? 28.0
+              : renderBox.size.height / 2;
+          final global = renderBox.localToGlobal(
+            Offset(renderBox.size.width / 2, avatarCenterY),
+          );
+          // ✅ حوّل إلى إحداثيات الـ Stack المحلي — يمنع الانحراف الناتج عن
+          //    فرق الإحداثيات (status bar / safe area) بين global والمحلي.
+          return flightBox != null ? flightBox.globalToLocal(global) : global;
         }
       }
       if (isCircle) {
+        // ✅ مركز الدائرة الحقيقي — يطابق SeatArea._buildGameLayout:
+        //    Container(height: 420) مع margin الـ 10 + Seat 0 عند top: centerY - 48
+        //    مع حجم _NormalSeat 76x104 → مركزه (centerX, centerY + 4).
+        //    الـ +4 يصحح الانحراف عند إطلاق الغيبة على الشاشات الضيقة.
         final centerX = screenSize.width / 2.0;
-        final centerY = headerH + 210.0;
+        // SeatArea: Container(height:420, margin:10) داخل Center → مركزه
+        // عند headerH + 10 + 210 = headerH + 220. الأفاتار أعلى من مركز
+        // المقعد بـ ~20px → هدف الطيران = headerH + 200 عند seat 0.
+        final centerY = headerH + 200.0;
         const radius = 140.0;
         if (seatIdx == 0) {
           return Offset(centerX, centerY);
@@ -1204,7 +1394,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final row = seatIdx ~/ 5;
         final col = seatIdx % 5;
         final targetX = 8.0 + (col * colWidth) + (colWidth / 2.0);
-        final targetY = headerH + 6.0 + (row * rowHeight) + 38.0;
+        // مركز أفاتار المقعد أعلى من مركز الـ row بـ ~14px
+        final targetY = headerH + 6.0 + (row * rowHeight) + 24.0;
         return Offset(targetX, targetY);
       }
     }
@@ -1272,6 +1463,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   int _msgCount = 0;
   final List<MessageModel> _chatMessages = [];
   int _localChatClearedAt = 0;
+  int _localCharismaClearedAt = 0;
   /// ✅ أقل وقت مسموح لعرض رسالة في الشات لهذه الجلسة. يُضبط عند أول دفعة
   /// من الستريم (الرسائل التاريخية) حتى لا تظهر رسائل ما قبل دخول المستخدم.
   int _chatVisibleAfterMs = 0;
@@ -1344,6 +1536,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final Set<String> _seenEntranceIds = {};
   final Set<String> _seenInviteIds = {};
   final Set<String> _seenMsgIds = {};
+  /// هدايا الحظ التي وصلها إطارها المرئي الاستباقي — يمنع تكرار التحليق
+  /// عندما يصل الإطار الكامل بعد انتهاء التسوية.
+  final Set<String> _luckyPreviewIds = {};
 
   // Track total gifts received per seat user ID
   final Map<int, GlobalKey> _seatKeys = { for (int i = 0; i < 25; i++) i: GlobalKey() };
@@ -1368,6 +1563,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   StreamSubscription? _broadcastSub;
   StreamSubscription? _broadcastPusherSub;
   StreamSubscription? _sbRealtimeSub;
+  StreamSubscription? _protoPushSub;
+  /// معالج الرسائل السريع القادم من البث الثنائي — يُسند داخل initState
+  /// لأن [insertRealtimeRoomMessage] دالة محلية داخل initState.
+  void Function(Map<String, dynamic>)? _fastGiftPushHandler;
   final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<Map<String, dynamic>?> _giftBannerNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<int> _chatUpdateNotifier = ValueNotifier<int>(0);
@@ -1389,6 +1588,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     RoomScreen.activeRoomId = widget.roomId;
+    // ✅ تهيئة صوت الفوز وملف الفيديو مسبقاً في الذاكرة والقرص ليعمل فوراً (0ms تأخير)
+    unawaited(LuckyGiftService().preloadWinSound());
+    unawaited(VapPlayer.warmupAsset(LuckyWinVideoBanner.videoAsset));
+    // ✅ إبقاء الشاشة نشطة أثناء التواجد في الغرفة فقط (لحفظ طاقة البطارية ومنع الحرارة خارجها)
+    unawaited(WakelockPlus.enable());
     // تتبع مدة البقاء في الغرفة والتحدث على المايك كل دقيقة للمهام اليومية
     _taskStayTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (!mounted) return;
@@ -1400,6 +1604,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
       }
     });
+
+    // استخدام بيانات الغرفة المُحمَّلة مسبقاً إذا توفرت لتفادي التأخير ومسح الكاش القديم
+    if (widget.initialRoom != null) {
+      _currentRoom = widget.initialRoom;
+      _roomSeatStyle = widget.initialRoom!.seatStyle;
+      _cachedRoomSeatStyle[widget.roomId] = widget.initialRoom!.seatStyle;
+      _cachedRoomSeatCount[widget.roomId] = widget.initialRoom!.seatCount;
+    }
+
+    // الاشتراك في قناة البث اللحظي السريع للغرفة
+    SupabaseRealtimeService.instance.subscribeGiftPush(widget.roomId);
 
     // تحميل شكل وعدد المقاعد لحظياً بدون أي تأخير من الذاكرة أو التخزين الدائم
     final savedStyle = _cachedRoomSeatStyle[widget.roomId] ??
@@ -1526,7 +1741,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         unawaited(_forceExitAfterLongBackground());
         return;
       }
-      _roomAudio.resumeFromBackground();
+      final isOnSeat = _currentUserSeatIndex != null && _currentUserSeatIndex! >= 0;
+      _roomAudio.resumeFromBackground(canPublish: isOnSeat);
       // ✅ تجديد الـ ping عند العودة
       _updatePresencePing();
     } else if (state == AppLifecycleState.detached) {
@@ -1704,13 +1920,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) setState(() => _takingSeat = false);
         });
+        _isMicOn = !widget.wasMicMuted;
         _roomAudio.startPublishing();
-        _roomAudio.toggleMic(!widget.wasMicMuted);
-      } else if (!isReturningFromMinimized) {
-        // Clear only this user's stale seat; never touch other members' seats.
-        Future(() async {
-          await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
-        });
+        _roomAudio.toggleMic(_isMicOn);
+      } else {
+        // ✅ المستخدم ليس على مقعد (في الجمهور / الشات) — كتم المايك وإيقاف البث فوراً
+        _isMicOn = false;
+        _roomAudio.toggleMic(false);
+        _roomAudio.stopPublishingIfActive();
+        if (!isReturningFromMinimized) {
+          // Clear only this user's stale seat; never touch other members' seats.
+          Future(() async {
+            await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
+          });
+        }
       }
       // Register in Firebase so others see this user
       _firebaseService.joinRoom(widget.roomId, currentUser);
@@ -1800,6 +2023,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     _roomSub = _firebaseService.roomStream(widget.roomId).listen((room) {
       if (room != null && mounted) {
+        // ✅ مزامنة مسح رسائل الشات لجميع المتواجدين بالغرفة فور قيام المالك بالحذف
+        if (room.chatClearedAt > _localChatClearedAt) {
+          _localChatClearedAt = room.chatClearedAt;
+          _chatVisibleAfterMs = max(_chatVisibleAfterMs, room.chatClearedAt);
+          _chatMessages.removeWhere((m) => m.timestamp <= room.chatClearedAt);
+          _chatMessages.clear();
+          _seenMsgIds.clear();
+          _msgCount = 0;
+          _chatUpdateNotifier.value++;
+          _broadcastNotifier.value = null;
+        }
+
+        // ✅ مزامنة مسح كاريزما المقاعد لجميع المتواجدين بالغرفة فور قيام المالك بالحذف
+        if (room.charismaClearedAt > _localCharismaClearedAt) {
+          _applyCharismaCleared(room.charismaClearedAt);
+        }
+
         setState(() {
           _currentRoom = room;
           _isOwner = _currentUserId == room.hostUid;
@@ -1829,8 +2069,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     void flushBroadcastChatIfChanged(bool changed) {
       if (!changed) return;
       _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      if (_chatMessages.length > 1000) {
-        _chatMessages.removeRange(0, _chatMessages.length - 1000);
+      if (_chatMessages.length > 150) {
+        _chatMessages.removeRange(0, _chatMessages.length - 150);
       }
       _msgCount = _chatMessages.length;
       _chatUpdateNotifier.value++;
@@ -1851,7 +2091,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final bTs = rawTs;
       final isRecent = (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
       if (!isRecent) return false;
-      if (minTimestamp > 0 && bTs < minTimestamp) return false;
+      if (minTimestamp > 0 && bTs <= minTimestamp) return false;
       // ✅ شات نظيف: لا نحقن بثوثاً حدثت قبل دخول المستخدم.
       if (_chatVisibleAfterMs > 0 && bTs <= _chatVisibleAfterMs) return false;
       final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
@@ -1871,7 +2111,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (bType == 'lucky_gift' ||
           bType == 'gift' ||
           bType == 'big_gift' ||
-          bType == 'lucky_bag_win') {
+          bType == 'lucky_bag_win' ||
+          bType == 'lucky_win') {
         return false;
       }
 
@@ -1912,7 +2153,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (ts <= 0) ts = nowMs;
       // حدث قديم/ساعة غير متزامنة — نتجاهله (نفس منطق البثوث).
       if ((nowMs - ts).abs() > 120000) return false;
-      if (minTimestamp > 0 && ts < minTimestamp) return false;
+      if (minTimestamp > 0 && ts <= minTimestamp) return false;
 
       final msgId = row['msg_id']?.toString() ?? '';
       final senderUid = row['sender_uid']?.toString() ?? '';
@@ -1971,8 +2212,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _chatMessages.add(incoming);
       }
       _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      if (_chatMessages.length > 1000) {
-        _chatMessages.removeRange(0, _chatMessages.length - 1000);
+      if (_chatMessages.length > 150) {
+        _chatMessages.removeRange(0, _chatMessages.length - 150);
       }
       _msgCount = _chatMessages.length;
       _chatUpdateNotifier.value++;
@@ -1993,6 +2234,286 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
       return true;
     }
+
+    // ⚡ البث الثنائي (Protobuf) يمر بنفس مسار الرسائل — فيُحقن قبل
+    //    صف room_messages ويُمنع تكراره عند وصول الصف عبر Pusher/Realtime
+    //    لأن msg_id واحد يستخدمه الطرفان.
+    _fastGiftPushHandler = insertRealtimeRoomMessage;
+    ProtoGiftPushService.instance.subscribe(widget.roomId);
+    _protoPushSub = ProtoGiftPushService.instance.pushes.listen((push) {
+      if (!mounted || push.roomId != widget.roomId) return;
+
+      // ⚡ كاريزما/ترتيب المقاعد في الذاكرة فقط — زي EventRoomCharm في Hijoy،
+      //    بدون أي قراءة من قاعدة البيانات في مسار الاستقبال.
+      if (push.isRoomCharm && push.message is RoomCharmPushProto) {
+        final c = push.message as RoomCharmPushProto;
+        if (c.userId.isEmpty) return;
+        final prev = _giftReceiverTotals[c.userId] ?? 0;
+        final displayTotal = c.total > 0 ? c.total : prev + c.delta;
+        if (displayTotal <= prev) return;
+        final pendingDelta = displayTotal - prev;
+        setState(() {
+          _giftReceiverTotals[c.userId] = displayTotal;
+          if (pendingDelta > 0) {
+            _pendingCharmCredits[c.userId] =
+                (_pendingCharmCredits[c.userId] ?? 0) + pendingDelta;
+            _pendingCharmCreditsAt[c.userId] =
+                DateTime.now().millisecondsSinceEpoch;
+          }
+          for (int i = 0; i < _seats.length; i++) {
+            final seat = _seats[i];
+            if (seat.user?.id == c.userId) {
+              _seats[i] = seat.copyWith(
+                user: seat.user!.copyWith(
+                  giftCount: displayTotal,
+                  totalGiftsReceived: displayTotal,
+                  charm: displayTotal.toString(),
+                ),
+              );
+            }
+          }
+        });
+        return;
+      }
+
+      if (push.message is GiftPushProto) {
+        final g = push.message as GiftPushProto;
+        if (g.isCancelled) {
+          _removeRealtimeGiftMessage(g.messageId);
+          return;
+        }
+        _fastGiftPushHandler?.call({
+          'msg_id': g.messageId,
+          'room_id': g.roomId,
+          'sender_uid': g.senderId,
+          'sender_name': g.senderName,
+          'sender_photo_url': g.senderPhotoUrl,
+          'type': 'gift',
+          'text':
+              '${g.senderName} أرسل ${g.giftName} x${g.count} إلى ${g.receiverName}',
+          'image_url': g.giftIcon,
+          'created_at': g.timestampSec * 1000,
+          'gift_payload': {
+            'gift_id': g.giftId,
+            'gift_name': g.giftName,
+            'gift_icon': g.giftIcon,
+            'image_url': g.giftIcon,
+            'default_image': g.giftIcon,
+            'count': g.count,
+            'value': g.value,
+            'receiver_id': g.receiverId,
+            'receiver_name': g.receiverName,
+            'animation_asset': g.animationAsset,
+          },
+        });
+
+        // التأثيرات البصرية للهدية العادية من نفس الإطار السريع بدل انتظار
+        // صف room_messages. المرسل عنده تأثيراته المحلية فنتخطاه هنا.
+        if (g.senderId != _currentUserId) {
+          final giftDef = _cachedGiftItems[g.giftId];
+          final isLucky = giftDef?.isLucky == true ||
+              giftDef?.type == 3 ||
+              giftDef?.categoryId == 'lucky';
+          if (!isLucky && g.receiverId.isNotEmpty && g.giftIcon.isNotEmpty) {
+            _triggerGiftFlight(iconUrl: g.giftIcon, receiverId: g.receiverId);
+          }
+
+          final anim = g.animationAsset.isNotEmpty
+              ? g.animationAsset
+              : (giftDef?.animationAsset ?? '');
+          if (_isAnimAsset(anim)) {
+            _triggerGiftAnim(
+              anim,
+              textReplacement: _buildTextReplacements(
+                nameKeys: giftDef?.nameKey,
+                receiverNameKeys: giftDef?.receiverNameKey,
+                countKeys: giftDef?.countKey,
+                senderName: g.senderName,
+                receiverName: g.receiverName,
+                count: g.count,
+              ),
+              imageReplacement: _buildImageReplacements(
+                photoKeys: giftDef?.photoKey,
+                receiverPhotoKeys: giftDef?.receiverPhotoKey,
+                senderPhoto: g.senderPhotoUrl,
+              ),
+              defaultImage: g.giftIcon,
+            );
+          }
+          _playGiftArrivalSound();
+          _checkGiftBanner({
+            'giftValue': g.value,
+            'giftCount': g.count,
+            'categoryId': giftDef?.categoryId,
+            'senderPhotoUrl': g.senderPhotoUrl,
+            'defaultImage': g.giftIcon,
+            'receiverId': g.receiverId,
+            'isLucky': isLucky,
+          });
+        }
+        // منع المسار البطيء من إعادة تشغيل نفس التأثيرات عند وصول الصف.
+        if (g.messageId.isNotEmpty) _seenMsgIds.add(g.messageId);
+        return;
+      }
+      if (push.message is LuckyGiftProto) {
+        final g = push.message as LuckyGiftProto;
+        final ts = g.timestampSec * 1000;
+
+        // ⚡ إطار استباقي قبل انتهاء التسوية: تأثيرات مرئية فقط (تحليق/
+        //    أنيميشن/صوت) بدون شات أو فوز — الإطار الكامل بنفس message_id
+        //    يضيف نتيجة الفوز فور وصولها من RPC.
+        if (g.isPreview) {
+          if (_luckyPreviewIds.length > 200) _luckyPreviewIds.clear();
+          _luckyPreviewIds.add(g.messageId);
+          if (g.senderId != _currentUserId) {
+            final giftDef = _cachedGiftItems[g.giftId];
+            final cover =
+                g.giftCoverUrl.isNotEmpty ? g.giftCoverUrl : g.giftIcon;
+            if (cover.isNotEmpty && g.receiverId.isNotEmpty) {
+              _triggerGiftFlight(iconUrl: cover, receiverId: g.receiverId);
+            }
+            final anim = g.animationAsset.isNotEmpty
+                ? g.animationAsset
+                : (giftDef?.animationAsset ?? '');
+            if (_isAnimAsset(anim)) {
+              _triggerGiftAnim(
+                anim,
+                textReplacement: _buildTextReplacements(
+                  nameKeys: giftDef?.nameKey,
+                  receiverNameKeys: giftDef?.receiverNameKey,
+                  countKeys: giftDef?.countKey,
+                  senderName: g.senderName,
+                  receiverName: g.receiverName,
+                  count: g.count,
+                ),
+                imageReplacement: _buildImageReplacements(
+                  photoKeys: giftDef?.photoKey,
+                  receiverPhotoKeys: giftDef?.receiverPhotoKey,
+                  senderPhoto: g.senderPhotoUrl,
+                ),
+                defaultImage: cover.isNotEmpty ? cover : g.giftIcon,
+              );
+            }
+            _playGiftArrivalSound();
+          }
+          return;
+        }
+
+        // 1) نص الهدية المحظوظة + مبلغ الفوز
+        _fastGiftPushHandler?.call({
+          'msg_id': g.messageId,
+          'room_id': g.roomId,
+          'sender_uid': g.senderId,
+          'sender_name': g.senderName,
+          'sender_photo_url': g.senderPhotoUrl,
+          'type': 'lucky_gift',
+          'text':
+              '${g.senderName} 🍀 ${g.giftName} x${g.count} (فاز بـ ${g.wonCoins} 🪙)',
+          'image_url': g.giftIcon,
+          'created_at': ts,
+          'gift_payload': {
+            'gift_icon': g.giftIcon,
+            'gift_name': g.giftName,
+            'count': g.count,
+            'won_coins': g.wonCoins,
+            'multiplier': g.jackpotMultiplier,
+            'receiver_name': g.receiverName.isNotEmpty
+                ? g.receiverName
+                : g.receiverId,
+          },
+        });
+
+        // 2) رسالة «نظام» المنفصلة — بنفس معرّف صف room_messages فما بتتكررش
+        if (g.winnerText.isNotEmpty && g.systemMessageId.isNotEmpty) {
+          _fastGiftPushHandler?.call({
+            'msg_id': g.systemMessageId,
+            'room_id': g.roomId,
+            'sender_uid': 'system',
+            'sender_name': 'نظام',
+            'sender_photo_url': '',
+            'type': 'system',
+            'text': g.winnerText,
+            'created_at': ts + 100,
+          });
+          _seenMsgIds.add(g.systemMessageId);
+        }
+
+        // 3) لافتة الإعلان العلوية — بنفس معرّف صف broadcasts
+        if (g.broadcastText.isNotEmpty && g.broadcastId.isNotEmpty) {
+          final changed = processBroadcastRow({
+            'id': g.broadcastId,
+            'timestamp': ts,
+            'room_id': g.roomId,
+            'type': 'lucky_gift',
+            'content': g.broadcastText,
+            'sender_uid': g.senderId,
+            'sender_name': g.senderName,
+            'sender_photo_url': g.senderPhotoUrl,
+            'gift_icon': g.giftIcon,
+            'multiplier': g.jackpotMultiplier,
+          });
+          flushBroadcastChatIfChanged(changed);
+        }
+
+        // 4) البانر الكبير + كروت المضاعفات + تحليق الهدية للمرسل إليه.
+        //    المرسل عنده عرض محلي خاص بيه، فنتخطاه هنا (self: true في البث).
+        if (g.senderId != _currentUserId &&
+            (g.multipliers.isNotEmpty || g.isBigWin || g.wonCoins > 0)) {
+          try {
+            final cover =
+                g.giftCoverUrl.isNotEmpty ? g.giftCoverUrl : g.giftIcon;
+            final cards = <LuckyCardResult>[
+              for (var i = 0; i < g.multipliers.length; i++)
+                LuckyCardResult(
+                  index: i,
+                  multiplier: g.multipliers[i],
+                  wonCoins: g.value * g.multipliers[i],
+                  giftName: g.giftName,
+                  giftIcon: g.giftIcon.isNotEmpty ? g.giftIcon : cover,
+                ),
+            ];
+            LuckyGiftService().enqueueLuckyGift(
+              context,
+              LuckyGiftBroadcastData(
+                roomId: g.roomId,
+                senderName: g.senderName,
+                senderAvatar: g.senderPhotoUrl,
+                receiverName: g.receiverName,
+                gift: LuckyGiftModel(
+                  id: g.giftId,
+                  giftName: g.giftName,
+                  giftNameAr: g.giftName,
+                  coinPrice: g.value,
+                  giftIconUrl: g.giftIcon,
+                  giftCoverUrl: cover,
+                  giftBgUrl: cover,
+                  svgaAnimUrl: g.animationAsset,
+                ),
+                cards: cards,
+                totalWonCoins: g.wonCoins,
+                maxMultiplier: g.jackpotMultiplier,
+                isBigWin: g.isBigWin,
+                customSvgaUrl:
+                    g.customSvgaUrl.isNotEmpty ? g.customSvgaUrl : null,
+                comboId: g.comboId,
+                comboCount: g.comboCount,
+              ),
+            );
+
+            if (cover.isNotEmpty &&
+                g.receiverId.isNotEmpty &&
+                !_luckyPreviewIds.contains(g.messageId)) {
+              _triggerGiftFlight(iconUrl: cover, receiverId: g.receiverId);
+            }
+            _luckyPreviewIds.remove(g.messageId);
+          } catch (_) {}
+        }
+
+        // منع المسار البطيء (messagesStream) من إعادة تشغيل نفس الأنيميشن
+        // لما يوصل صف room_messages الحقيقي بعدين.
+        if (g.messageId.isNotEmpty) _seenMsgIds.add(g.messageId);
+      }
+    }, onError: (_) {});
 
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
@@ -2034,8 +2555,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       final data = evt['data'];
       if (data is! Map) return;
-      if (evt['event'] == 'room_message') {
+      final eventType = evt['event']?.toString() ?? '';
+      if (eventType == 'room_message') {
         insertRealtimeRoomMessage(Map<String, dynamic>.from(data));
+      } else if (eventType == 'member_leave') {
+        final leaveUid = data['uid']?.toString();
+        final leaveSeatIdx = (data['seat_index'] as num?)?.toInt();
+        if (leaveUid != null && leaveUid.isNotEmpty) {
+          _roomMembers.removeWhere((m) => m.uid == leaveUid);
+          _onlineCount = _roomMembers.length;
+          for (int i = 0; i < _seats.length; i++) {
+            if (_seats[i].user?.id == leaveUid || (leaveSeatIdx != null && i == leaveSeatIdx)) {
+              _seats[i] = _seats[i].copyWith(
+                state: SeatState.empty,
+                user: null,
+                isMuted: false,
+                clearUser: true,
+              );
+            }
+          }
+          if (mounted) setState(() {});
+        }
       }
     }, onError: (_) {});
 
@@ -2092,9 +2632,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ? msgs.where((m) => m.timestamp > minTimestamp).toList()
             : msgs;
 
-        // إزالة أي رسائل أقدم من وقت المسح فقط
+        // إزالة أي رسائل أقدم من أو تساوي وقت المسح
         if (minTimestamp > 0) {
-          _chatMessages.removeWhere((m) => m.timestamp < minTimestamp);
+          _chatMessages.removeWhere((m) => m.timestamp <= minTimestamp);
         }
 
         // الحفاظ على كامل الرسائل السابقة أثناء الجلسة مع استبدال الرسائل المؤقتة بالرسائل المؤكدة
@@ -2145,8 +2685,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           }
         }
         _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-        if (_chatMessages.length > 1000) {
-          _chatMessages.removeRange(0, _chatMessages.length - 1000);
+        if (_chatMessages.length > 150) {
+          _chatMessages.removeRange(0, _chatMessages.length - 150);
         }
         _msgCount = _chatMessages.length;
         _chatUpdateNotifier.value++;
@@ -2211,9 +2751,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
                 final animAsset = (payload['animation_asset']?.toString().isNotEmpty == true)
                     ? payload['animation_asset'].toString()
-                    : (giftDef?.animationAsset ?? giftDef?.defaultImage ?? giftDef?.iconAsset);
+                    : (giftDef?.animationAsset ?? '');
 
-                if (animAsset != null && animAsset.isNotEmpty) {
+                if (_isAnimAsset(animAsset)) {
                   final textRepl = _buildTextReplacements(
                     nameKeys: giftDef?.nameKey ?? payload['name_key']?.toString() ?? payload['nameKey']?.toString(),
                     receiverNameKeys: giftDef?.receiverNameKey ?? payload['receiver_name_key']?.toString(),
@@ -2375,7 +2915,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _giftSub = _firebaseService.sentGiftsStream(widget.roomId).listen((gifts) {
       final totals = <String?, int>{};
       gm.SentGiftModel? latestNewGift;
-      final clearCutoffMs = _currentRoom?.charismaClearedAt ?? 0;
+      final roomCharismaCleared = _currentRoom?.charismaClearedAt ?? 0;
+      final clearCutoffMs = _localCharismaClearedAt > roomCharismaCleared
+          ? _localCharismaClearedAt
+          : roomCharismaCleared;
       for (final g in gifts) {
         if (clearCutoffMs > 0 && g.timestamp.millisecondsSinceEpoch <= clearCutoffMs) {
           continue;
@@ -2431,16 +2974,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             );
           }
 
-          // ── أنيميشن الهدية أو صورتها الكبيرة ──
-          final effectiveAsset = (latest.animationAsset != null && latest.animationAsset!.isNotEmpty)
-              ? latest.animationAsset
-              : ((latest.defaultImage != null && latest.defaultImage!.isNotEmpty)
-                  ? latest.defaultImage
-                  : ((latest.iconAsset != null && latest.iconAsset!.isNotEmpty)
-                      ? latest.iconAsset
-                      : (giftDef?.iconAsset ?? giftDef?.defaultImage)));
+          // ── أنيميشن الهدية الكبير (للهدايا المتحركة فقط) ──
+          final String effectiveAsset = (latest.animationAsset != null && latest.animationAsset!.isNotEmpty)
+              ? latest.animationAsset!
+              : (giftDef?.animationAsset ?? '');
 
-          if (effectiveAsset != null && effectiveAsset.isNotEmpty) {
+          if (_isAnimAsset(effectiveAsset)) {
             final nameKey = giftDef?.nameKey;
             final photoKey = giftDef?.photoKey;
             final defaultImage = latest.defaultImage ?? latest.iconAsset ?? giftDef?.defaultImage ?? giftDef?.iconAsset;
@@ -2731,17 +3270,40 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     final now = latest > 0 ? latest + 1 : DateTime.now().millisecondsSinceEpoch;
     _localChatClearedAt = now;
-    _firebaseService.updateRoom(widget.roomId, {'chat_cleared_at': now});
+    _chatVisibleAfterMs = max(_chatVisibleAfterMs, now);
+    _firebaseService.clearRoomMessages(widget.roomId, clearedAt: now);
     setState(() {
       _currentRoom = _currentRoom?.copyWith(chatClearedAt: now);
       _chatMessages.clear();
+      _seenMsgIds.clear();
       _msgCount = 0;
     });
     _chatUpdateNotifier.value++;
-    // ✅ حذف فوري لكل أشرطة الماركي أيضاً — لا يبقى أي نص معروض
-    //    بعد مسح الشات، ويختفي في نفس اللحظة وليس بعد انتهاء مدته.
-    GlobalBannerService.instance.clearMarqueeBanners();
     _broadcastNotifier.value = null;
+  }
+
+  void _applyCharismaCleared(int clearedAt) {
+    if (clearedAt <= _localCharismaClearedAt && _localCharismaClearedAt > 0) return;
+    _localCharismaClearedAt = clearedAt;
+    _giftReceiverTotals.clear();
+    _pendingCharmCredits.clear();
+    _pendingCharmCreditsAt.clear();
+    for (int i = 0; i < _seats.length; i++) {
+      final seat = _seats[i];
+      if (seat.user != null) {
+        _seats[i] = seat.copyWith(
+          user: seat.user!.copyWith(
+            giftCount: 0,
+            totalGiftsReceived: 0,
+            charm: '0',
+          ),
+        );
+      }
+    }
+    _currentRoom = _currentRoom?.copyWith(charismaClearedAt: clearedAt);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _resetSeatsCharisma() {
@@ -2773,26 +3335,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             onPressed: () async {
               Navigator.pop(ctx);
               final now = DateTime.now().millisecondsSinceEpoch;
-              await _firebaseService.clearRoomCharisma(widget.roomId);
+              await _firebaseService.clearRoomCharisma(widget.roomId, clearedAt: now);
               if (mounted) {
-                setState(() {
-                  _giftReceiverTotals.clear();
-                  _pendingCharmCredits.clear();
-                  _pendingCharmCreditsAt.clear();
-                  for (int i = 0; i < _seats.length; i++) {
-                    final seat = _seats[i];
-                    if (seat.user != null) {
-                      _seats[i] = seat.copyWith(
-                        user: seat.user!.copyWith(
-                          giftCount: 0,
-                          totalGiftsReceived: 0,
-                          charm: '0',
-                        ),
-                      );
-                    }
-                  }
-                  _currentRoom = _currentRoom?.copyWith(charismaClearedAt: now);
-                });
+                _applyCharismaCleared(now);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: DText(isAr ? 'تم حذف كاريزما الغرفه نهائياً بنجاح' : 'Seats charisma cleared permanently'),
@@ -3003,7 +3548,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _roomAudio.startPublishing();
         _roomAudio.toggleMic(_isMicOn);
       }
-    } else if (_roomAudio.isPublishing && !_takingSeat && _currentUserSeatIndex == null) {
+    } else if (!_takingSeat && _currentUserSeatIndex == null) {
+      // ✅ المستخدم ليس على مقعد (في الجمهور / الشات) -> كتم المايك وإيقاف البث فوراً
+      _isMicOn = false;
+      _roomAudio.toggleMic(false);
       _roomAudio.stopPublishingIfActive();
       _roomAudio.resetPublishingState();
     }
@@ -3131,7 +3679,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // }
 
   List<SeatModel> _buildInitialSeats() {
-    final count = _cachedRoomSeatCount[widget.roomId] ??
+    final count = widget.initialRoom?.seatCount ??
+        _cachedRoomSeatCount[widget.roomId] ??
         RoomScreen.sharedPrefs?.getInt('room_seat_count_${widget.roomId}') ??
         RoomScreen.sharedPrefs?.getInt('last_selected_room_seat_count') ??
         20;
@@ -3139,9 +3688,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     for (int i = 0; i < count; i++) {
       seats.add(SeatModel(index: i));
     }
-    // Restore the last known seat layout immediately so the room never flashes
-    // an empty stage while the first network request is still in flight.
-    final cached = RoomScreen.cachedRoomSeatMaps[widget.roomId];
+    // Restore the seat layout: use fresh preloaded seat map if available
+    final cached = widget.initialSeatMap ?? RoomScreen.cachedRoomSeatMaps[widget.roomId];
     if (cached != null) {
       for (final entry in cached.entries) {
         final idx = entry.key;
@@ -3261,7 +3809,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _broadcastPusherSub?.cancel();
     // LEAVE قناة الغرفة عند الخروج
     _sbRealtimeSub?.cancel();
+    _protoPushSub?.cancel();
+    ProtoGiftPushService.instance.unsubscribe();
     PusherRealtimeService.instance.unsubscribeRoom(widget.roomId);
+    SupabaseRealtimeService.instance.unsubscribeGiftPush(widget.roomId);
     SupabaseRealtimeService.instance.unsubscribeRoom();
     _broadcastNotifier.dispose();
     _giftBannerNotifier.dispose();
@@ -3455,8 +4006,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
       if (!added) return;
       _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      if (_chatMessages.length > 1000) {
-        _chatMessages.removeRange(0, _chatMessages.length - 1000);
+      if (_chatMessages.length > 150) {
+        _chatMessages.removeRange(0, _chatMessages.length - 150);
       }
       _msgCount = _chatMessages.length;
       _chatUpdateNotifier.value++;
@@ -3772,9 +4323,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       );
     });
 
-    // تشغيل الصوت والمايك
+    // تشغيل الصوت والمايك عند الصعود للمقعد
+    _isMicOn = !_seats[idx].isMuted;
     _roomAudio.startPublishing();
-    _roomAudio.toggleMic(!_seats[idx].isMuted);
+    _roomAudio.toggleMic(_isMicOn);
 
     try {
       await Future.wait([
@@ -4374,40 +4926,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _openSeatStyle() {
     _closeAllPanels();
-    SeatStyle panelStyle;
-    switch (_roomSeatStyle) {
-      case seat_model.SeatStyle.circle:
-        panelStyle = SeatStyle.game;
-        break;
-      case seat_model.SeatStyle.classic:
-        panelStyle = SeatStyle.classic;
-        break;
-      case seat_model.SeatStyle.heart:
-      case seat_model.SeatStyle.square:
-        panelStyle = SeatStyle.vip;
-        break;
-    }
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => SeatStylePanel(
-        initialStyle: panelStyle,
+        initialModelStyle: _roomSeatStyle,
         initialSeatCount: _seats.length,
-        onConfirm: (style, count) {
-          seat_model.SeatStyle newSeatStyle;
-          switch (style) {
-            case SeatStyle.game:
-              newSeatStyle = seat_model.SeatStyle.circle;
-              break;
-            case SeatStyle.classic:
-              newSeatStyle = seat_model.SeatStyle.classic;
-              break;
-            case SeatStyle.vip:
-              newSeatStyle = seat_model.SeatStyle.heart;
-              break;
-          }
+        onConfirm: (newSeatStyle, count) {
           _cachedRoomSeatStyle[widget.roomId] = newSeatStyle;
           _cachedRoomSeatCount[widget.roomId] = count;
           RoomScreen.sharedPrefs?.setInt('room_seat_style_${widget.roomId}', newSeatStyle.index);
@@ -4708,8 +5235,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           ),
           // ── Background ───────────────────────────────────────
           Positioned.fill(
-            child: Builder(
-              builder: (ctx) {
+            child: RepaintBoundary(
+              child: Builder(
+                builder: (ctx) {
                 final customBg = _currentRoom?.bgImage;
                 if (customBg != null && customBg.isNotEmpty) {
                   final assetType = detectAssetType(customBg);
@@ -4748,22 +5276,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   return Image(image: R.cachedImage(bgImageUrl), fit: BoxFit.cover);
                 }
                 
-                final gradient = AppColors.themeFriend; // default
-                final colors = DynamicConfigService().getRoomGradient(theme);
-                final LinearGradient activeGradient = (colors != null && colors.length >= 2) 
-                    ? LinearGradient(colors: colors, begin: Alignment.topCenter, end: Alignment.bottomCenter)
-                    : (theme == 'themeChat' ? AppColors.themeChat : 
-                       theme == 'themeMusic' ? AppColors.themeMusic :
-                       theme == 'themeGame' ? AppColors.themeGame :
-                       theme == 'themeParty' ? AppColors.themeParty :
-                       theme == 'themeHobby' ? AppColors.themeHobby : AppColors.themeFriend);
-                
-                return Container(
-                  decoration: BoxDecoration(gradient: activeGradient),
+                // الصورة الأساسية الافتراضية لجميع الغرف (القاعة الملكية الذهبية)
+                return const SizedBox.expand(
+                  child: Image(
+                    image: AssetImage('assets/images/default_room_bg.webp'),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
                 );
               },
             ),
           ),
+        ),
 
           // ── Main column ──────────────────────────────────────
           Column(
@@ -4779,10 +5304,35 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 hotValue: widget.hotValue,
                 gameDesc: widget.gameDesc,
                 onlineCount: '$_onlineCount',
-                onlineAvatars: _roomMembers
-                    .map((m) => m.photoUrl)
-                    .where((u) => u.isNotEmpty)
-                    .toList(),
+                // ⚡ شريط المتصدرين من الذاكرة (same as Hijoy RAM leaderboard):
+                //    نرتب بالكاريزما المحلية حتى لو تعذّر الاتصال بالسيرفر،
+                //    ونتجاهل الترتيب العشوائي لقائمة الأعضاء.
+                onlineAvatars: () {
+                  final photoById = <String, String>{};
+                  for (final m in _roomMembers) {
+                    if (m.id.isNotEmpty) photoById[m.id] = m.photoUrl;
+                  }
+                  for (final s in _seats) {
+                    final u = s.user;
+                    final uid = u?.id;
+                    if (uid != null && uid.isNotEmpty) {
+                      photoById[uid] = u?.avatar ?? '';
+                    }
+                  }
+                  final leaders = _giftReceiverTotals.entries
+                      .where((e) => e.key != null && e.value > 0)
+                      .toList()
+                    ..sort((a, b) => b.value.compareTo(a.value));
+                  final ranked = leaders
+                      .map((e) => photoById[e.key!] ?? '')
+                      .where((u) => u.isNotEmpty)
+                      .toList();
+                  if (ranked.isNotEmpty) return ranked;
+                  return _roomMembers
+                      .map((m) => m.photoUrl)
+                      .where((u) => u.isNotEmpty)
+                      .toList();
+                }(),
                 isFollowed: _isFollowed,
                 monthlyCoins: _currentRoom?.monthlyCoins ?? 0,
                 onCupTap: () {
@@ -4817,21 +5367,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               const SizedBox(height: 4),
 
               // SeatArea — 21 seats
-              SeatArea(
-                seats: _seats,
-                seatKeys: _seatKeys,
-                onSeatTap: _onSeatTap,
-                onSeatLongPress: _onSeatLongPress,
-                seatEmojis: _seatEmojis,
-                moderators: _moderators,
-                hostUid: _currentRoom?.hostUid,
-                seatStyle: _roomSeatStyle,
-                showCharmValues: _showCharmValues,
-                onCharmTap: () => setState(() => _showCharmValues = !_showCharmValues),
+              RepaintBoundary(
+                child: SeatArea(
+                  seats: _seats,
+                  seatKeys: _seatKeys,
+                  onSeatTap: _onSeatTap,
+                  onSeatLongPress: _onSeatLongPress,
+                  seatEmojis: _seatEmojis,
+                  moderators: _moderators,
+                  hostUid: _currentRoom?.hostUid,
+                  seatStyle: _roomSeatStyle,
+                  showCharmValues: _showCharmValues,
+                  onCharmTap: () => setState(() => _showCharmValues = !_showCharmValues),
+                ),
               ),
 
               // Chat area fills remaining
-              Expanded(child: _buildChatArea()),
+              Expanded(
+                child: RepaintBoundary(
+                  child: _buildChatArea(),
+                ),
+              ),
 
               // Bottom bar
               BottomBar(
@@ -5053,7 +5609,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             // ✅ عرض الأنيميشن الكبير (ملء الشاشة) عند الإرسال أيضاً
                             //    مثل الدخوليات تماماً — الهدايا غير المحظوظة فقط
                             //    (الهدايا المحظوظة لها عرضها المستقل عبر LuckyGiftService).
-                            if (animAsset.isNotEmpty && data['isLucky'] != true) {
+                            if (_isAnimAsset(animAsset) && data['isLucky'] != true) {
                               final giftObj = data['gift'] as gm.GiftModel?;
                               final targets = (data['selectedTargets'] as List<dynamic>?) ?? const <dynamic>[];
                               Map<String, dynamic>? singleTarget;
@@ -5439,14 +5995,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           if (_giftFlights.isNotEmpty)
             Positioned.fill(
               child: Stack(
+                key: _flightStackKey,
                 children: [
                   for (final flight in _giftFlights)
                     GiftSeatFlightOverlay(
                       key: ValueKey('gift_flight_${flight.id}'),
                       giftIconUrl: flight.iconUrl,
                       startOffset: Offset(
-                        MediaQuery.of(context).size.width * 0.8,
-                        MediaQuery.of(context).size.height - 60,
+                        MediaQuery.of(context).size.width / 2,
+                        MediaQuery.of(context).size.height * 0.38,
                       ),
                       targetOffsets: flight.targets,
                       onFinished: () {
@@ -6253,7 +6810,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       return Padding(
         padding: const EdgeInsets.only(top: 6, left: 8, right: 8),
         child: Align(
-          alignment: Alignment.centerLeft,
+          // يمين في العربي / يسار في الإنجليزي — يتبع اتجاه اللغة تلقائياً
+          alignment: AlignmentDirectional.centerStart,
           child: Container(
             constraints: const BoxConstraints(maxWidth: 280),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -6883,7 +7441,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     final roomBg = _currentRoom?.bgImage.isNotEmpty == true
         ? _currentRoom!.bgImage
-        : 'assets/images/room_bg_friend.webp';
+        : 'assets/images/default_room_bg.webp';
 
     return Positioned.fill(
       child: GestureDetector(
@@ -6908,7 +7466,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 // iv_room_bg: خلفية الغرفة الأساسية في أعلى النافذة
                 Positioned.fill(
                   child: roomBg.startsWith('http')
-                      ? Image(image: R.cachedImage(roomBg), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/images/room_bg_friend.webp', fit: BoxFit.cover))
+                      ? Image(image: R.cachedImage(roomBg), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/images/default_room_bg.webp', fit: BoxFit.cover))
                       : Image.asset(roomBg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                 ),
                 // iv_room_mask: قناع التعتيم الأصلي المتدرج
@@ -7938,6 +8496,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _takingSeat = false;
     _pendingSeatIndex = null;
 
+    if (resolvedUid != null && resolvedUid.isNotEmpty) {
+      // بث فوري بـ 1 ملي لجميع المتواجدين في الغرفة
+      SupabaseRealtimeService.instance.sendBroadcast(
+        roomId: roomId,
+        event: 'member_leave',
+        payload: {
+          'uid': resolvedUid,
+          'name': resolvedName,
+          'seat_index': mySeatIdx,
+        },
+      );
+    }
+
     final List<Future> cleanupTasks = [];
     Future<void> safeCall(Future Function() fn) async {
       try {
@@ -8126,8 +8697,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       } catch (_) {}
     }
     final name = _currentUserName ?? '';
+    final mySeatIdx = _currentUserSeatIndex;
     _chatMessages.clear();
     _msgCount = 0;
+
+    // 0. بث فوري بـ 1 ملي عبر WebSocket لمغادرة المقعد وتحديث عداد الأعضاء للجميع فوراً
+    if (uid != null && uid.isNotEmpty) {
+      SupabaseRealtimeService.instance.sendBroadcast(
+        roomId: widget.roomId,
+        event: 'member_leave',
+        payload: {
+          'uid': uid,
+          'name': name,
+          'seat_index': mySeatIdx,
+        },
+      );
+    }
+
     // 1. Dismiss UI immediately — 0ms instant visual response!
     if (mounted) {
       setState(() => _showExit = false);
@@ -8142,13 +8728,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _roomAudio.leaveChannel();
       _roomAudio.dispose();
     } catch (_) {}
-    // 3. ✅ انتظر تنظيف الغرفة المصغّرة بالكامل قبل أي خطوة تالية —
-    //    الخروج يجب أن يكون نهائياً (بدون مقعد/عضوية متبقية)
+    // 3. تنظيف الغرفة المصغّرة بالخلفية دون حجب الخروج
     try {
       if (uid != null) {
-        await MinimizedRoomService()
-            .exitRoom(uid)
-            .timeout(const Duration(seconds: 6));
+        unawaited(MinimizedRoomService().exitRoom(uid));
       }
     } catch (_) {}
     // 4. Run seat & server session cleanups concurrently in background

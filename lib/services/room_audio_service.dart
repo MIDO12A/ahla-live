@@ -184,13 +184,20 @@ class RoomAudioService {
 
       try {
         await ZegoExpressEngine.instance.startSoundLevelMonitor(
-          config: ZegoSoundLevelConfig(100, true),
+          config: ZegoSoundLevelConfig(180, true),
         );
       } catch (e) {
         debugPrint('[RoomAudioService] startSoundLevelMonitor failed: $e');
       }
 
       _initialized = true;
+      // ✅ كتم المايك عتادياً وبرمجياً فور تهيئة المحرك كإجراء أمان لمنع التقاط الصوت قبل المقعد
+      _micEnabled = false;
+      try {
+        final engine = ZegoExpressEngine.instance;
+        await engine.muteMicrophone(true);
+        await engine.mutePublishStreamAudio(true);
+      } catch (_) {}
       debugPrint('[RoomAudioService] Zego engine initialized successfully (appId=$appId, scenario=$scenario)');
       return true;
     } catch (e) {
@@ -222,12 +229,34 @@ class RoomAudioService {
       final engine = ZegoExpressEngine.instance;
       final user = ZegoUser(uid, uid);
       await engine.loginRoom(channelName, user, config: ZegoRoomConfig(0, true, ''));
-      debugPrint('[RoomAudioService] Logged into room: $channelName');
+      debugPrint('[RoomAudioService] Logged into room: $channelName (Audience / Listen-only mode)');
 
-      _micEnabled = true;
+      // ✅ افتراضياً: أي مستخدم ينضم للغرفة يكون مستمعاً فقط (Audience)
+      // المايك مقفل تماماً عتادياً ولا يوجد أي بث صوتي حتى يصعد للمقعد
+      _micEnabled = false;
+      _isPublishing = false;
+      await engine.muteMicrophone(true);
+      await engine.mutePublishStreamAudio(true);
+      await engine.stopPublishingStream();
     } catch (e) {
       debugPrint('[RoomAudioService] joinChannel failed: $e');
     }
+  }
+
+  /// قاعدة واحدة لتطبيق حالة المايك — تُستخدم من toggleMic ومن startPublishing
+  /// حتى لا يختلف السلوك عند سباق (race) بين فك الميوت وبدء البث.
+  /// الميوت = إغلاق كامل للمايك (hardware + البث). فك الميوت = فتح كامل.
+  Future<void> _applyMicState() async {
+    if (!_initialized || effectiveAppSign.isEmpty) return;
+    final engine = ZegoExpressEngine.instance;
+    // 1) الميكروفون (الالتقاط) — يُغلق تماماً عند الكتم ويُفتح عند الفك.
+    await engine.muteMicrophone(!_micEnabled);
+    // 2) الصوت المُبث — نفس الحالة، بغض النظر عن لحظة بدء البث.
+    //    الموسيقى تبقى مسموعة للآخرين أثناء الكتم (تبث من مشغّل منفصل).
+    final isMusicPlaying = RoomMusicPlayerService().isPlaying;
+    await engine.mutePublishStreamAudio(isMusicPlaying ? false : !_micEnabled);
+    debugPrint('[RoomAudioService] mic state applied: enabled=$_micEnabled '
+        '(hardware + publish ${_micEnabled ? "open" : "muted"})');
   }
 
   Future<void> startPublishing() async {
@@ -238,12 +267,9 @@ class RoomAudioService {
       await engine.startPublishingStream(streamId);
       await engine.enableCamera(false);
       _isPublishing = true;
-      if (!_micEnabled) {
-        try {
-          await engine.muteMicrophone(true);
-          await engine.mutePublishStreamAudio(true);
-        } catch (_) {}
-      }
+      // ✅ أعد تطبيق حالة المايك بعد بدء البث — تضمن أن فك الميوت يفتح
+      //    الصوت حتى لو سبق استدعاء toggleMic بدء البث.
+      await _applyMicState();
       debugPrint('[RoomAudioService] Started publishing stream: $streamId (micEnabled=$_micEnabled)');
     } catch (e) {
       debugPrint('[RoomAudioService] startPublishing failed: $e');
@@ -271,22 +297,16 @@ class RoomAudioService {
   }
 
   Future<bool> toggleMic(bool on) async {
+    // ✅ تخزين الحالة أولاً — حتى لو لم يكن المحرك جاهزاً بعد، فإن
+    //    startPublishing / resumeFromBackground سيطبّقانها فور جاهزيته.
     _micEnabled = on;
     if (!_initialized || effectiveAppSign.isEmpty) {
+      debugPrint('[RoomAudioService] toggleMic on=$on (queued until engine ready)');
       return true;
     }
     try {
-      final engine = ZegoExpressEngine.instance;
-      await engine.muteMicrophone(!on);
-      if (_isPublishing) {
-        final isMusicPlaying = RoomMusicPlayerService().isPlaying;
-        if (!isMusicPlaying) {
-          await engine.mutePublishStreamAudio(!on);
-        } else {
-          await engine.mutePublishStreamAudio(false);
-        }
-      }
-      debugPrint('[RoomAudioService] toggleMic on=$on (hardware + stream muted=${!on})');
+      await _applyMicState();
+      debugPrint('[RoomAudioService] toggleMic on=$on applied');
       return true;
     } catch (e) {
       debugPrint('[RoomAudioService] toggleMic failed: $e');
@@ -319,13 +339,13 @@ class RoomAudioService {
 
   void resetPublishingState() {
     _isPublishing = false;
-    _micEnabled = true;
-    debugPrint('[RoomAudioService] Publishing state reset');
+    _micEnabled = false;
+    debugPrint('[RoomAudioService] Publishing state reset (micEnabled=false)');
   }
 
   /// إيقاف البث فقط لو كان مفعّلاً فعلاً — يمنع نداء native على محرك
   /// Zego غير المُهيأ (null object reference) حين يخرج المستخدم من المقعد.
-  void stopPublishingIfActive() async {
+  Future<void> stopPublishingIfActive() async {
     if (!_isPublishing || !_initialized || effectiveAppSign.isEmpty) {
       _isPublishing = false;
       return;
@@ -345,8 +365,14 @@ class RoomAudioService {
   }
 
   /// Restore mic publishing if it was interrupted when returning to foreground.
-  Future<void> resumeFromBackground() async {
+  Future<void> resumeFromBackground({bool canPublish = false}) async {
     if (!_initialized || _currentRoomId == null || _currentUid == null || effectiveAppSign.isEmpty) return;
+    if (!canPublish) {
+      // المستخدم ليس على المقعد (في الجمهور / التكست) — تأكيد كتم المايك وإيقاف البث
+      await stopPublishingIfActive();
+      await toggleMic(false);
+      return;
+    }
     if (!_isPublishing) {
       try {
         final streamId = 'audio_${_currentUid}_$_currentRoomId';

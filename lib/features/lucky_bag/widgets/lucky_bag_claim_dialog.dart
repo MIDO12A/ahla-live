@@ -431,7 +431,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
 
                       // icon of prize (coins)
                       Image.asset(
-                        'assets/images/common_gold_ic_3.png',
+                        'assets/images/common_gold_ic_3.webp',
                         width: 50,
                         height: 50,
                         fit: BoxFit.contain,

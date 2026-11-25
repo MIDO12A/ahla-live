@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
+import '../../../core/widgets/cached_image.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../models/seat_model.dart';
 import 'svga_frame.dart';
@@ -18,12 +19,13 @@ import '../../../widgets/special_name_text.dart';
 Widget _loadAvatar(String? avatar, double size) {
   if (avatar == null || avatar.isEmpty) return _emptyCircle(size);
   if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-    return Image(
-      image: R.cachedImage(avatar),
+    return CachedNetImage(
+      avatar,
       width: size,
       height: size,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _emptyCircle(size),
+      placeholder: (_, __) => _emptyCircle(size),
+      error: (_, __, ___) => _emptyCircle(size),
     );
   }
   return Image.asset(
@@ -31,6 +33,8 @@ Widget _loadAvatar(String? avatar, double size) {
     width: size,
     height: size,
     fit: BoxFit.cover,
+    cacheWidth: (size * 2).round(),
+    cacheHeight: (size * 2).round(),
     errorBuilder: (_, __, ___) => _emptyCircle(size),
   );
 }
@@ -73,12 +77,19 @@ class SeatArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (seatStyle == SeatStyle.circle) {
-      return _buildGameLayout(context);
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: _buildGrid(),
+    // ✅ استمع لتغييرات DynamicConfigService — عند حذف التخصيص الخاص بالمقاعد
+    //    (app_assets)، يُظهر المقعد الافتراضي فوراً داخل الغرفة.
+    return ListenableBuilder(
+      listenable: DynamicConfigService.instance,
+      builder: (context, _) {
+        if (seatStyle == SeatStyle.circle) {
+          return _buildGameLayout(context);
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: _buildGrid(),
+        );
+      },
     );
   }
 
@@ -161,13 +172,105 @@ class SeatArea extends StatelessWidget {
       ),
     );
   }
+  Widget _buildSeatItem(int idx) {
+    if (idx < 0 || idx >= seats.length) return const SizedBox();
+    return GestureDetector(
+      onTap: () => onSeatTap(idx),
+      onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(idx) : null,
+      child: _NormalSeat(
+        key: seatKeys?[idx] ?? ValueKey('seat_${seats[idx].index}'),
+        seat: seats[idx],
+        emoji: seatEmojis?[idx],
+        isModerator: seats[idx].user != null
+            ? (moderators?.contains(seats[idx].user!.id) ?? false)
+            : false,
+        seatStyle: seatStyle,
+        isCaptain: false,
+        showCharmValues: showCharmValues,
+        onCharmTap: onCharmTap,
+      ),
+    );
+  }
+
   Widget _buildGrid() {
     const seatsPerRow = 5;
     final items = seats;
     final rows = <Widget>[];
 
+    // ── 9-Seat Layout (Stage / Throne) ──
+    if (items.length == 9 || seatStyle == SeatStyle.stageNine) {
+      // Row 0 (top): 4 seats (2 left, gap in center, 2 right) -> seats 1, 2 | gap | 3, 4
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int j = 1; j <= 2; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j < items.length ? j : 0),
+                ),
+              ),
+            const Expanded(child: SizedBox()), // Center stage gap
+            for (int j = 3; j <= 4; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j < items.length ? j : 0),
+                ),
+              ),
+          ],
+        ),
+      );
+      rows.add(const SizedBox(height: 6));
+
+      // Row 1 (center stage): Seat 0 in middle
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(child: SizedBox()),
+            const Expanded(child: SizedBox()),
+            Expanded(
+              child: Center(
+                child: _buildSeatItem(0),
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+            const Expanded(child: SizedBox()),
+          ],
+        ),
+      );
+      rows.add(const SizedBox(height: 6));
+
+      // Row 2 (bottom): 4 seats (2 left, gap in center, 2 right) -> seats 5, 6 | gap | 7, 8
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int j = 5; j <= 6; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j < items.length ? j : 0),
+                ),
+              ),
+            const Expanded(child: SizedBox()), // Center gap
+            for (int j = 7; j <= 8; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j < items.length ? j : 0),
+                ),
+              ),
+          ],
+        ),
+      );
+
+      return Column(mainAxisSize: MainAxisSize.min, children: rows);
+    }
+
+    // ── 12-Seat Layout (2 + 5 + 5) ──
     if (items.length == 12) {
-      // 12-mic layout matching Mic12CenterGridLayoutManger.kt:
       // Row 0: 2 center seats (columns 1 and 3)
       // Row 1: 5 seats
       // Row 2: 5 seats
@@ -179,39 +282,13 @@ class SeatArea extends StatelessWidget {
             const Expanded(child: SizedBox()),
             Expanded(
               child: Center(
-                child: GestureDetector(
-                  onTap: () => onSeatTap(0),
-                  onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(0) : null,
-                  child: _NormalSeat(
-                    key: seatKeys?[0] ?? ValueKey('seat_${items[0].index}'),
-                    seat: items[0],
-                    emoji: seatEmojis?[0],
-                    isModerator: items[0].user != null ? moderators?.contains(items[0].user!.id) ?? false : false,
-                    seatStyle: seatStyle,
-                    isCaptain: false,
-                    showCharmValues: showCharmValues,
-                    onCharmTap: onCharmTap,
-                  ),
-                ),
+                child: _buildSeatItem(0),
               ),
             ),
             const Expanded(child: SizedBox()),
             Expanded(
               child: Center(
-                child: GestureDetector(
-                  onTap: () => onSeatTap(1),
-                  onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(1) : null,
-                  child: _NormalSeat(
-                    key: seatKeys?[1] ?? ValueKey('seat_${items[1].index}'),
-                    seat: items[1],
-                    emoji: seatEmojis?[1],
-                    isModerator: items[1].user != null ? moderators?.contains(items[1].user!.id) ?? false : false,
-                    seatStyle: seatStyle,
-                    isCaptain: false,
-                    showCharmValues: showCharmValues,
-                    onCharmTap: onCharmTap,
-                  ),
-                ),
+                child: _buildSeatItem(1),
               ),
             ),
             const Expanded(child: SizedBox()),
@@ -222,29 +299,15 @@ class SeatArea extends StatelessWidget {
 
       for (int i = 2; i < 12; i += 5) {
         final end = math.min(i + 5, 12);
-        final rowItems = items.sublist(i, end);
         rows.add(
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (int j = 0; j < rowItems.length; j++)
+              for (int j = i; j < end; j++)
                 Expanded(
                   child: Center(
-                    child: GestureDetector(
-                      onTap: () => onSeatTap(i + j),
-                      onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(i + j) : null,
-                      child: _NormalSeat(
-                        key: seatKeys?[i + j] ?? ValueKey('seat_${rowItems[j].index}'),
-                        seat: rowItems[j],
-                        emoji: seatEmojis?[i + j],
-                        isModerator: rowItems[j].user != null ? moderators?.contains(rowItems[j].user!.id) ?? false : false,
-                        seatStyle: seatStyle,
-                        isCaptain: false,
-                        showCharmValues: showCharmValues,
-                        onCharmTap: onCharmTap,
-                      ),
-                    ),
+                    child: _buildSeatItem(j),
                   ),
                 ),
             ],
@@ -255,6 +318,84 @@ class SeatArea extends StatelessWidget {
       return Column(mainAxisSize: MainAxisSize.min, children: rows);
     }
 
+    // ── 13-Seat Layout (4 + 5 + 4) ──
+    if (items.length == 13 || seatStyle == SeatStyle.constellation) {
+      // Row 0 (top): 4 seats (2 left, gap in center, 2 right) -> seats 0, 1 | gap | 2, 3
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int j = 0; j <= 1; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j < items.length ? j : 0),
+                ),
+              ),
+            const Expanded(child: SizedBox()), // Center gap
+            for (int j = 2; j <= 3; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j < items.length ? j : 0),
+                ),
+              ),
+          ],
+        ),
+      );
+      rows.add(const SizedBox(height: 6));
+
+      // Row 1 (middle): 5 seats -> seats 4, 5, 6, 7, 8
+      final midEnd = math.min(9, items.length);
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int j = 4; j < midEnd; j++)
+              Expanded(
+                child: Center(
+                  child: _buildSeatItem(j),
+                ),
+              ),
+          ],
+        ),
+      );
+      rows.add(const SizedBox(height: 6));
+
+      // Row 2 (bottom): 4 seats (2 left, gap in center, 2 right) -> seats 9, 10 | gap | 11, 12
+      final btmEnd = items.length;
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int j = 9; j <= 10; j++)
+              if (j < btmEnd)
+                Expanded(
+                  child: Center(
+                    child: _buildSeatItem(j),
+                  ),
+                )
+              else
+                const Expanded(child: SizedBox()),
+            const Expanded(child: SizedBox()), // Center gap
+            for (int j = 11; j <= 12; j++)
+              if (j < btmEnd)
+                Expanded(
+                  child: Center(
+                    child: _buildSeatItem(j),
+                  ),
+                )
+              else
+                const Expanded(child: SizedBox()),
+          ],
+        ),
+      );
+
+      return Column(mainAxisSize: MainAxisSize.min, children: rows);
+    }
+
+    // ── Default Grid (5 seats per row: 10, 15, 20) ──
     for (int i = 0; i < items.length; i += seatsPerRow) {
       final end = math.min(i + seatsPerRow, items.length);
       final rowItems = items.sublist(i, end);
@@ -267,22 +408,7 @@ class SeatArea extends StatelessWidget {
             for (int j = 0; j < rowItems.length; j++)
               Expanded(
                 child: Center(
-                  child: GestureDetector(
-                    onTap: () => onSeatTap(i + j),
-                    onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(i + j) : null,
-                    child: _NormalSeat(
-                      key: seatKeys?[i + j] ?? ValueKey('seat_${rowItems[j].index}'),
-                      seat: rowItems[j],
-                      emoji: seatEmojis?[i + j],
-                      isModerator: rowItems[j].user != null
-                          ? moderators?.contains(rowItems[j].user!.id) ?? false
-                          : false,
-                      seatStyle: seatStyle,
-                      isCaptain: false,
-                      showCharmValues: showCharmValues,
-                      onCharmTap: onCharmTap,
-                    ),
-                  ),
+                  child: _buildSeatItem(i + j),
                 ),
               ),
             for (int k = rowItems.length; k < seatsPerRow; k++)
@@ -327,12 +453,13 @@ class _NormalSeat extends StatelessWidget {
     final hasFrame = seat.hasFrame || (seat.frameAsset != null && seat.frameAsset!.isNotEmpty);
     final frameAsset = seat.frameAsset;
 
-    return ValueListenableBuilder<Set<String>>(
-      valueListenable: RoomAudioService().speakingUsersNotifier,
-      builder: (context, speakingUsers, _) {
-        final isSpeaking = hasUser && user?.id != null && speakingUsers.contains(user!.id);
+    return RepaintBoundary(
+      child: ValueListenableBuilder<Set<String>>(
+        valueListenable: RoomAudioService().speakingUsersNotifier,
+        builder: (context, speakingUsers, _) {
+          final isSpeaking = hasUser && user?.id != null && speakingUsers.contains(user!.id);
 
-        Widget child = SizedBox(
+          Widget child = SizedBox(
           width: 76,
           height: 104,
           child: Column(
@@ -456,8 +583,9 @@ class _NormalSeat extends StatelessWidget {
 
     return child;
       },
-    );
-  }
+    ),
+  );
+}
 
   String _formatCharm(String charmStr) {
     final value = int.tryParse(charmStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
@@ -496,20 +624,40 @@ class _NormalSeat extends StatelessWidget {
       if (seatStyle == SeatStyle.heart) {
         emptyIcon = cfg.roomSeatDefaultVip.isNotEmpty ? cfg.roomSeatDefaultVip : R.mipmap('room_mic_seat_default_vip_2_ic');
         lockIcon = cfg.roomSeatLockVip.isNotEmpty ? cfg.roomSeatLockVip : R.roomMicSeatLockIc;
+      } else if (seatStyle == SeatStyle.purpleWings) {
+        emptyIcon = 'assets/mipmap-xxhdpi/seat_chair_purple_wings.webp';
+      } else if (seatStyle == SeatStyle.wingedHeart) {
+        emptyIcon = 'assets/mipmap-xxhdpi/seat_chair_purple_heart.webp';
+      } else if (seatStyle == SeatStyle.royalThrone) {
+        emptyIcon = seat.index == 0
+            ? 'assets/mipmap-xxhdpi/seat_chair_king_red.webp'
+            : 'assets/mipmap-xxhdpi/seat_chair_royal_red.webp';
+      } else if (seatStyle == SeatStyle.stageNine) {
+        emptyIcon = seat.index == 0
+            ? 'assets/mipmap-xxhdpi/seat_chair_gold_throne.webp'
+            : (cfg.roomSeatDefaultClassic.isNotEmpty ? cfg.roomSeatDefaultClassic : R.roomMicSeatDefaultIc);
       }
+
+      final isSpecialChair = seatStyle == SeatStyle.purpleWings ||
+          seatStyle == SeatStyle.wingedHeart ||
+          seatStyle == SeatStyle.royalThrone ||
+          (seatStyle == SeatStyle.stageNine && seat.index == 0);
+
+      final iconSize = isSpecialChair ? 56.0 : size;
+
       return Center(
         child: SizedBox(
           width: borderSize,
           height: borderSize,
           child: Center(
             child: SizedBox(
-              width: size,
-              height: size,
+              width: iconSize,
+              height: iconSize,
               child: seat.isLocked
-                  ? R.loadAsset(lockIcon, fit: BoxFit.cover)
+                  ? R.loadAsset(lockIcon, fit: BoxFit.contain)
                   : R.loadAsset(
                       emptyIcon,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                     ),
             ),
           ),
@@ -559,6 +707,118 @@ class _NormalSeat extends StatelessWidget {
           child: SizedBox(
             width: borderSize - 8.0,
             height: borderSize - 8.0,
+            child: avatarWidget,
+          ),
+        ),
+      );
+    } else if (seatStyle == SeatStyle.purpleWings) {
+      // Purple wings theme border
+      baseAvatar = Container(
+        width: borderSize,
+        height: borderSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFCE93D8), Color(0xFF8E24AA), Color(0xFFBA68C8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFAB47BC).withValues(alpha: 0.35),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: ClipOval(
+          child: SizedBox(
+            width: borderSize - 6.0,
+            height: borderSize - 6.0,
+            child: avatarWidget,
+          ),
+        ),
+      );
+    } else if (seatStyle == SeatStyle.wingedHeart) {
+      // Winged heart theme border
+      baseAvatar = Container(
+        width: borderSize,
+        height: borderSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF48FB1), Color(0xFFD81B60), Color(0xFFFF4081)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFE91E63).withValues(alpha: 0.35),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: ClipOval(
+          child: SizedBox(
+            width: borderSize - 6.0,
+            height: borderSize - 6.0,
+            child: avatarWidget,
+          ),
+        ),
+      );
+    } else if (seatStyle == SeatStyle.royalThrone) {
+      // Royal throne theme border
+      baseAvatar = Container(
+        width: borderSize,
+        height: borderSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFD54F), Color(0xFFD32F2F), Color(0xFFFFB300)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFD32F2F).withValues(alpha: 0.4),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: ClipOval(
+          child: SizedBox(
+            width: borderSize - 6.0,
+            height: borderSize - 6.0,
+            child: avatarWidget,
+          ),
+        ),
+      );
+    } else if (seatStyle == SeatStyle.stageNine && seat.index == 0) {
+      // Center stage king seat
+      baseAvatar = Container(
+        width: borderSize,
+        height: borderSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFE082), Color(0xFFFFA000), Color(0xFFFFD54F)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFFA000).withValues(alpha: 0.5),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: ClipOval(
+          child: SizedBox(
+            width: borderSize - 6.0,
+            height: borderSize - 6.0,
             child: avatarWidget,
           ),
         ),
