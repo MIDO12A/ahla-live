@@ -367,6 +367,19 @@ export default function UsersPage() {
               <div>
                 <h3 className="text-white font-semibold text-sm">{editing.name || 'Unnamed'}</h3>
                 <p className="text-[10px] text-slate-500 font-mono">#{editing.customId} · {editing.uid.slice(0, 8)}</p>
+                {(() => {
+                  const rawDate = editing.createdAt || (editing as any).created_at;
+                  if (!rawDate) return null;
+                  const d = new Date(rawDate);
+                  if (isNaN(d.getTime())) return null;
+                  const dateStr = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+                  const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  return (
+                    <span className="inline-block mt-1 text-[10px] text-amber-400/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                      تاريخ الانضمام: {dateStr} ({timeStr})
+                    </span>
+                  );
+                })()}
               </div>
             </div>
             <button onClick={() => { setEditing(null); setShowPasswordField(false); setNewPassword(''); }} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
@@ -1220,6 +1233,33 @@ export default function UsersPage() {
         loading={loading}
         columns={[
           { key: 'customId', label: 'ID', width: '70px', render: u => <span className="font-mono text-[10px] text-slate-400">{u.customId}</span> },
+          {
+            key: 'createdAt',
+            label: 'تاريخ الانضمام',
+            sortable: true,
+            render: u => {
+              const rawDate = u.createdAt || (u as any).created_at;
+              if (!rawDate) return <span className="text-slate-600 text-[10px]">—</span>;
+              const d = new Date(rawDate);
+              if (isNaN(d.getTime())) return <span className="text-slate-600 text-[10px]">—</span>;
+              const datePart = d.toLocaleDateString('ar-EG', {
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+              });
+              const timePart = d.toLocaleTimeString('ar-EG', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              });
+              return (
+                <div className="flex flex-col text-[10px] leading-tight select-text">
+                  <span className="text-white font-medium">{datePart}</span>
+                  <span className="text-amber-400/90 text-[9px] font-mono">{timePart}</span>
+                </div>
+              );
+            },
+          },
           { key: 'name', label: 'Name', sortable: true, render: u => (
             <div className="flex items-center gap-2">
               <div className="relative">

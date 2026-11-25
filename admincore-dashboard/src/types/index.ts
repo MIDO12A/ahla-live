@@ -63,6 +63,8 @@ export interface UserModel {
   agency_diamonds_cumulative?: number;
   agencyDiamondsWithdrawable?: number;
   agency_diamonds_withdrawable?: number;
+  createdAt?: string;
+  created_at?: string;
 }
 
 export interface RechargeRequestModel {
@@ -790,7 +792,24 @@ export interface GiftCategory {
   id: string;
   name: string;
   sortOrder: number;
+  /** قسم حظ — الهدايا تحته بتتبعت كهدية محظوظة (type=3 / is_lucky) */
+  isLucky?: boolean;
+  /** عرض في التطبيق — false = مخفية من اللوحة (التطبيق يحترم القائمة الأساسية في الكود) */
+  isActive?: boolean;
   createdAt?: number;
+}
+
+export interface BannerKeyBinding {
+  /** اسم المفتاح داخل ملف اللافتة (SVGA/VAP/MP4) */
+  key: string;
+  /** نوع القيمة المحقونة: image = صورة، text = نص */
+  type: 'image' | 'text' | string;
+  /** مصدر البيانات: sender_photo | receiver_photo | gift_icon | gift_count |
+   *  sender_name | gift_name | multiplier | total_coins | won_coins |
+   *  room_name | content | custom */
+  source: string;
+  /** قيمة ثابتة تُستخدم فقط عندما source = 'custom' */
+  value?: string;
 }
 
 export interface GiftBannerConfig {
@@ -798,10 +817,14 @@ export interface GiftBannerConfig {
   categoryId?: string;
   thresholdCoins: number;
   svgaUrl: string;
+  /** نوع اللافتة: '' تلقائي / svga / vap / mp4 / png / webp — الصور الثابتة تعرض بيانات البث بدون مفاتيح */
+  bannerType?: string;
   userRKey: string;
   userLKey: string;
   numberKey: string;
   giftKey: string;
+  /** خريطة المفاتيح الديناميكية — أي مفتاح يريده الأدمن مع نوعه ومصدره */
+  keyMap?: BannerKeyBinding[];
   isActive: boolean;
   createdAt?: number;
 }
@@ -948,3 +971,33 @@ export interface AgencyExpTaskConfig {
   icon_name: string;
 }
 
+
+// ─── Game Links (ربط الألعاب / الطرف الثالث) ────────────────────────────────
+export interface GameLink {
+  id: string;
+  gameKey: string;
+  nameAr: string;
+  nameEn: string;
+  gameId: string;
+  platform: string;
+  host: string;
+  appKey: string;
+  urlTemplate: string;
+  imageUrl: string;
+  viewMode: string;
+  poolId: string;
+  isHot: boolean;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GameProtocolSettings {
+  id: string;
+  appKey: string;
+  callbackBaseUrl: string;
+  providerName: string;
+  signRules: string;
+  updatedAt?: string;
+}

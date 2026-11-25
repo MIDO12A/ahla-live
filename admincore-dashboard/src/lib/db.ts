@@ -1,5 +1,6 @@
 import { supabase, getAdminSupabase } from './supabase'
 import { getCurrentAdminName } from './auth'
+import { ALL_PERMISSION_KEYS } from './permissions'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -234,6 +235,28 @@ export async function getUsers(): Promise<UserModel[]> {
 
 
 
+  // 3. Fallback: Fetch auth users created_at if any user lacks createdAt
+  try {
+    if (adminClient) {
+      const authUsers = await getAuthUsers();
+      if (authUsers && authUsers.length > 0) {
+        const authCreatedMap = new Map<string, string>();
+        for (const au of authUsers) {
+          if (au.id && au.created_at) authCreatedMap.set(au.id, au.created_at);
+        }
+        for (const u of results) {
+          if (!u.createdAt && !u.created_at && authCreatedMap.has(u.uid)) {
+            const cat = authCreatedMap.get(u.uid);
+            u.createdAt = cat;
+            u.created_at = cat;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('getUsers: auth created_at overlay failed', e);
+  }
+
   // 4. Merge device metadata into users
   for (const u of results) {
     const meta = deviceMetaMap[u.uid]
@@ -444,6 +467,52 @@ export async function checkCustomIdAvailable(
   return { available: true };
 }
 
+// حقول بتتبعت من الواجهة بس مش أعمدة حقيقية في جدول users
+// (بيانات عرض/حظر مؤقتة) — PostgREST بيرفضها بـ 400 لو اتبعتت.
+const USER_NON_COLUMN_KEYS = new Set([
+  'ban_duration_days',
+  'banned_at',
+  'banned_until',
+  'device_id',
+  'device_model',
+  'mac_address',
+  'network_id',
+  'ip_address',
+  'agency_diamonds_monthly',
+  'agency_diamonds_balance',
+  'agency_diamonds_cumulative',
+  'agency_diamonds_withdrawable',
+])
+
+/**
+ * بيفلتر مفاتيح snake_case على الأعمدة الموجودة فعلاً في جدول users.
+ * - لو عندنا صف موجود (select '*') → whitelist من مفاتيحه (أدق).
+ * - لو مفيش (insert) → blacklist للحقول الوهمية المعروفة.
+ */
+function filterUserColumns(
+  snakeData: Record<string, unknown>,
+  existingUser: Record<string, unknown> | null,
+): Record<string, unknown> {
+  if (existingUser) {
+    const allowed = new Set(Object.keys(existingUser))
+    const out: Record<string, unknown> = {}
+    const dropped: string[] = []
+    for (const [k, v] of Object.entries(snakeData)) {
+      if (allowed.has(k)) out[k] = v
+      else dropped.push(k)
+    }
+    if (dropped.length) {
+      console.warn('[updateUser] dropped non-column keys:', dropped.join(', '))
+    }
+    return out
+  }
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(snakeData)) {
+    if (!USER_NON_COLUMN_KEYS.has(k)) out[k] = v
+  }
+  return out
+}
+
 export async function updateUser(uid: string, data: Partial<UserModel>) {
   const client = getAdminSupabase() || supabase
 
@@ -466,7 +535,7 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
   
   // First try to update
   try {
-    const { data: existingUser, error: fetchError } = await client.from('users').select('uid').eq('uid', uid).maybeSingle()
+    const { data: existingUser, error: fetchError } = await client.from('users').select('*').eq('uid', uid).maybeSingle()
     
     if (fetchError) {
       console.error('Error checking for existing user:', fetchError)
@@ -507,20 +576,37 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
         ...data,
       }
       
-      const snakeData = toSnakeCase(userData as Record<string, unknown>)
+      const snakeData = filterUserColumns(
+        toSnakeCase(userData as Record<string, unknown>),
+        existingUser,
+      )
       console.log('Inserting new user with data:', snakeData)
-      
+
       const { error: insertError } = await client.from('users').insert(snakeData)
       if (insertError) {
-        console.error('Error inserting user:', insertError)
+        console.error('Error inserting user:', JSON.stringify({
+          code: insertError.code, message: insertError.message,
+          details: insertError.details, hint: insertError.hint,
+        }))
         throw insertError
       }
     } else {
       // User exists - update
-      const snakeData = toSnakeCase(data as Record<string, unknown>)
+      const snakeData = filterUserColumns(
+        toSnakeCase(data as Record<string, unknown>),
+        existingUser,
+      )
+      if (Object.keys(snakeData).length === 0) {
+        console.warn('[updateUser] nothing to update after column filter:', data)
+        return
+      }
       const { error } = await client.from('users').update(snakeData).eq('uid', uid)
       if (error) {
-        console.error('Error updating user:', error)
+        console.error('Error updating user:', JSON.stringify({
+          code: error.code, message: error.message,
+          details: error.details, hint: error.hint,
+          payload: snakeData,
+        }))
         throw error
       }
     }
@@ -558,7 +644,7 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
     // (host_agency_members) ومحفظة وكيل الشحن (agency_wallets) — لا مزامنة تلقائية.
 
   } catch (e) {
-    console.error('updateUser failed:', e)
+    console.error('updateUser failed:', e instanceof Error ? e.message : JSON.stringify(e))
     throw e
   }
 }
@@ -883,11 +969,35 @@ async function legacyDeleteUser(uid: string) {
 
 // ---- Gifts ----
 
+/** قيمة الاسم المعروضة للهدية — مع البدائل كما في تطبيق Flutter.
+ *  بدون هذا، الصفوف التي اسمها الإنساني مخزّن في name_ar/name_key تظهر
+ *  كأرقام وحروف (id) في جدول الأدمن. */
+function giftDisplayName(it: Record<string, any>): string {
+  const raw = it.name ?? it.name_ar ?? it.nameAr ?? it.englist_name ?? ''
+  let name = String(raw ?? '').trim()
+  if (name && name !== 'null' && !/^[0-9a-f]{8}-/i.test(name) && !/^[a-z]+_\d+$/.test(name)) {
+    return name
+  }
+  // استخرج اسماً من name_key إن كان نصاً مقروءاً (ليس custom_id: ولا مفتاح svga)
+  const nk = String(it.name_key ?? it.nameKey ?? '').trim()
+  if (nk && !nk.startsWith('custom_id:') && !/^[\w-]*\d{4,}/.test(nk) && !nk.includes('_')) {
+    return nk
+  }
+  return name || 'هدية'
+}
+
 export async function getGifts(): Promise<GiftModel[]> {
   try {
     const { data, error } = await supabase.from('gifts').select('*')
     if (!error && data && data.length > 0) {
-      return mapList<GiftModel>(data)
+      const mapped = mapList<GiftModel>(data) as unknown as Record<string, any>[]
+      // خلّي الاسم المقروء يظهر قبل الإرجاع
+      for (const g of mapped) {
+        const display = giftDisplayName(g)
+        ;(g as any).name = display
+        ;(g as any).nameAr = display
+      }
+      return mapped as unknown as GiftModel[]
     }
   } catch (e) {
     console.warn('getGifts supabase error, trying firestore fallback:', e)
@@ -915,8 +1025,10 @@ const BASE_GIFT_COLUMNS = new Set([
 
 function sanitizeGiftData(data: Partial<GiftModel>): Record<string, unknown> {
   const raw = { ...data };
-  const name = String(raw.name || (raw as any).name_ar || (raw as any).nameAr || '').trim();
-  const nameAr = String((raw as any).name_ar || (raw as any).nameAr || raw.name || '').trim();
+  const nameKeyRaw = String((raw as any).name_key || (raw as any).nameKey || '').trim();
+  const nameFromKey = nameKeyRaw.startsWith('custom_id:') ? '' : nameKeyRaw;
+  const name = String(raw.name || (raw as any).name_ar || (raw as any).nameAr || nameFromKey || '').trim();
+  const nameAr = String((raw as any).name_ar || (raw as any).nameAr || raw.name || nameFromKey || '').trim();
   let cpDuration = Number(raw.cpGiftDurationHours ?? (raw as any).cp_gift_duration_hours ?? 0) || 0;
   if (!cpDuration) {
     const dType = (raw as any).duration_type ?? (raw as any).durationType;
@@ -5947,35 +6059,66 @@ export async function migrateAssetOverridesFromConfig(config: Record<string, any
 
 // ---- Gift Categories ----
 
-export async function getGiftCategories(): Promise<import('../types').GiftCategory[]> {
+/** زي getGiftCategories بس بيرجّع سبب الفشل بدل ما يبتلعه (قائمة فاضية كدّابة). */
+export async function getGiftCategoriesWithError(): Promise<{
+  rows: import('../types').GiftCategory[];
+  error?: string;
+}> {
   const catMap = new Map<string, import('../types').GiftCategory>();
   try {
-    const { data } = await supabase.from('gift_categories').select('*').order('sort_order');
+    const { data, error } = await supabase
+      .from('gift_categories')
+      .select('*')
+      .order('sort_order');
+    if (error) return { rows: [], error: error.message };
     if (data) {
       mapList<import('../types').GiftCategory>(data).forEach(c => {
         if (c.id) catMap.set(c.id, c);
       });
     }
-  } catch {}
-  
-  return Array.from(catMap.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-}
-
-export async function addGiftCategory(id: string, data: import('../types').GiftCategory) {
-  
-  try {
-    await supabase.from('gift_categories').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) });
-  } catch (e) {
-    console.warn('addGiftCategory failed:', e);
+    const rows = Array.from(catMap.values()).sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+    );
+    return { rows };
+  } catch (e: any) {
+    return { rows: [], error: e?.message ?? String(e) };
   }
 }
 
-export async function updateGiftCategory(id: string, data: Partial<import('../types').GiftCategory>) {
-  
+export async function getGiftCategories(): Promise<import('../types').GiftCategory[]> {
+  return (await getGiftCategoriesWithError()).rows;
+}
+
+export async function addGiftCategory(
+  id: string,
+  data: import('../types').GiftCategory,
+): Promise<{ ok: boolean; error?: string }> {
   try {
-    await supabase.from('gift_categories').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id);
-  } catch (e) {
-    console.warn('updateGiftCategory failed:', e);
+    const { error } = await supabase
+      .from('gift_categories')
+      .upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+export async function updateGiftCategory(
+  id: string,
+  data: Partial<import('../types').GiftCategory>,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    // ✅ upsert بدل update: أقسام صندوق الهدايا الأساسية موجودة في كود التطبيق
+    //    وقد لا يكون لها مستند في gift_categories بعد — أول تعديل على الاسم
+    //    يجب أن ينشئ المستند حتى يقرأه التطبيق ويظهر الاسم الجديد في التبويب.
+    const { error } = await supabase
+      .from('gift_categories')
+      .upsert({ id, ...toSnakeCase(data as Record<string, unknown>) });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
   }
 }
 
@@ -6034,25 +6177,39 @@ export async function getGiftBannerConfigs(): Promise<import('../types').GiftBan
 
 export async function addGiftBannerConfig(id: string, data: import('../types').GiftBannerConfig) {
   try {
-    await supabase.from('gift_banner_configs').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
+    const raw = toSnakeCase(data as unknown as Record<string, unknown>)
+    if (!raw.category_id) {
+      raw.category_id = null
+    }
+    const { error } = await supabase.from('gift_banner_configs').upsert({ id, ...raw })
+    if (error) throw error
   } catch (e) {
     console.warn('addGiftBannerConfig failed:', e)
+    throw e
   }
 }
 
 export async function updateGiftBannerConfig(id: string, data: Partial<import('../types').GiftBannerConfig>) {
   try {
-    await supabase.from('gift_banner_configs').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+    const raw = toSnakeCase(data as Record<string, unknown>)
+    if ('category_id' in raw && !raw.category_id) {
+      raw.category_id = null
+    }
+    const { error } = await supabase.from('gift_banner_configs').update(raw).eq('id', id)
+    if (error) throw error
   } catch (e) {
     console.warn('updateGiftBannerConfig failed:', e)
+    throw e
   }
 }
 
 export async function deleteGiftBannerConfig(id: string) {
   try {
-    await supabase.from('gift_banner_configs').delete().eq('id', id)
+    const { error } = await supabase.from('gift_banner_configs').delete().eq('id', id)
+    if (error) throw error
   } catch (e) {
     console.warn('deleteGiftBannerConfig failed:', e)
+    throw e
   }
 }
 
@@ -8030,3 +8187,78 @@ export async function saveAgencyExpTasks(tasks: AgencyExpTaskConfig[]): Promise<
 
 
 
+
+// ─── Game Links (ربط الألعاب / الطرف الثالث) ────────────────────────────────
+
+export async function getGameLinks(): Promise<import('../types').GameLink[]> {
+  try {
+    const { data } = await supabase
+      .from('game_links')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+    return mapList<import('../types').GameLink>(data ?? [])
+  } catch (e) {
+    console.error('getGameLinks error:', e)
+    return []
+  }
+}
+
+export async function addGameLink(id: string, data: import('../types').GameLink) {
+  try {
+    const { error } = await supabase
+      .from('game_links')
+      .upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
+    if (error) throw error
+  } catch (e) {
+    console.warn('addGameLink failed:', e)
+  }
+}
+
+export async function updateGameLink(id: string, data: Partial<import('../types').GameLink>) {
+  try {
+    const { error } = await supabase
+      .from('game_links')
+      .update(toSnakeCase(data as Record<string, unknown>))
+      .eq('id', id)
+    if (error) throw error
+  } catch (e) {
+    console.warn('updateGameLink failed:', e)
+  }
+}
+
+export async function deleteGameLink(id: string) {
+  try {
+    const { error } = await supabase.from('game_links').delete().eq('id', id)
+    if (error) throw error
+  } catch (e) {
+    console.warn('deleteGameLink failed:', e)
+  }
+}
+
+export async function getGameProtocolSettings(): Promise<import('../types').GameProtocolSettings | null> {
+  try {
+    const { data } = await supabase
+      .from('game_protocol_settings')
+      .select('*')
+      .eq('id', 'default')
+      .maybeSingle()
+    return mapSingle<import('../types').GameProtocolSettings>(data)
+  } catch (e) {
+    console.error('getGameProtocolSettings error:', e)
+    return null
+  }
+}
+
+export async function saveGameProtocolSettings(data: Partial<import('../types').GameProtocolSettings>) {
+  try {
+    const { error } = await supabase
+      .from('game_protocol_settings')
+      .upsert({ id: 'default', ...toSnakeCase(data as Record<string, unknown>) })
+    if (error) throw error
+    return true
+  } catch (e) {
+    console.warn('saveGameProtocolSettings failed:', e)
+    return false
+  }
+}
