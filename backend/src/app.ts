@@ -6,10 +6,14 @@ import gamesRoutes from './routes/games';
 
 
 import openapiDoc from './openapi.json';
+import { createRateLimiter } from './middleware/rateLimiter';
 
 const app = express();
 
 app.use(cors());
+
+// 🛡️ حماية السيرفر من الضغط والسبام (Rate Limiting: 25 طلب في الثانية لكل IP)
+app.use(createRateLimiter({ windowMs: 1000, maxRequests: 25 }));
 
 // ⚠️ على Vercel قد يسبق الـ runtime ويحوّل JSON إلى req.body object ويستهلك
 //    الـ stream؛ استدعاء express.json() وقتها يرمي 500 قبل أي handler.
@@ -71,13 +75,24 @@ app.get('/docs', (_req, res) => {
   `);
 });
 
-// ✅ الباك إند صار Supabase-only — لا Firebase.
-//    كل بيانات التطبيق على Supabase؛ هذه الباك إند تخدم فقط:
-//    - /api/v1/games      → بروتوكول StyeParty (رصيد + نتائج)
-//    - /api/v1/vip        → بيانات VIP (يقرأ من Supabase)
-//    - /api/v1/recharge   → خطط الشحن static
-//    باقي المسارات القديمة (auth/users/gifts/lucky/...) كانت
-//    تعتمد على Firestore وأُزيلت — التطبيق لا يستدعيها أصلاً.
+import authRouter from './modules/auth';
+import roomsRouter from './modules/rooms';
+import economyRouter from './modules/economy';
+import messagingRouter from './modules/messaging';
+import agenciesRouter from './modules/agencies';
+import adminRouter from './modules/admin';
+
+// ═══════════════════════════════════════════════════════
+// 6 MODULAR ARCHITECTURE MODULES
+// ═══════════════════════════════════════════════════════
+app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/rooms', roomsRouter);
+app.use('/api/v1/economy', economyRouter);
+app.use('/api/v1/messaging', messagingRouter);
+app.use('/api/v1/agencies', agenciesRouter);
+app.use('/api/v1/admin', adminRouter);
+
+// المسارات المتوافقة رجعياً (Backward Compatibility)
 app.use('/api/v1/vip', vipRoutes);
 app.use('/api/v1/recharge', rechargeRoutes);
 app.use('/api/v1/games', gamesRoutes);

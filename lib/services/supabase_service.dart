@@ -21,6 +21,7 @@ import '../core/supabase_compat.dart';
 import '../core/utils/id_generator.dart';
 import 'supabase_data_service.dart';
 import 'supabase_realtime_service.dart';
+import 'proto_gift_push_service.dart';
 import 'dynamic_config_service.dart';
 import 'agency_target_evaluator.dart';
 import 'global_banner_service.dart';
@@ -408,41 +409,16 @@ class SupabaseService {
         }
       } catch (_) {}
         // ✅ انتظار ذكي: إشعار Realtime فوري عند أي INSERT على broadcasts،
-        //    أو fallback كل 3s إن ماتت القناة، أو safety كل 10s كحد أقصى.
+        //    أو fallback كل 6s إن ماتت القناة، أو safety كل 20s كحد أقصى.
         await rt.waitForTableChange(
           topic: topic,
           tables: const {'broadcasts'},
-          fallback: const Duration(seconds: 3),
-          safety: const Duration(seconds: 10),
+          fallback: const Duration(seconds: 6),
+          safety: const Duration(seconds: 20),
         );
       }
     } finally {
       rt.unsubscribeTopic(topic);
-    }
-  }
-
-  Stream<Map<String, dynamic>> globalBigWinStream() async* {
-    final Set<String> seenWins = {};
-    // لا نُعيد عرض إعلانات فوز قديمة عند فتح التطبيق (كانت تظهر
-    // بانرات 100X/250X «مخزّنة» بلا أي لاعب) — نبدأ من لحظة الاشتراك.
-    final startedAt = DateTime.now().millisecondsSinceEpoch;
-    while (true) {
-      try {
-        final announcements = await _ds.getRecentGlobalAnnouncements(limit: 5);
-        for (final a in announcements) {
-          final id = a['id']?.toString() ?? '';
-          if (id.isEmpty || seenWins.contains(id)) continue;
-          seenWins.add(id);
-          if (seenWins.length > 50) seenWins.remove(seenWins.first);
-          final ts = (a['timestamp'] as num?)?.toInt() ??
-              (DateTime.tryParse(a['created_at']?.toString() ?? '')
-                      ?.millisecondsSinceEpoch ??
-                  0);
-          if (ts != 0 && ts < startedAt - 20000) continue;
-          yield a;
-        }
-      } catch (_) {}
-      await Future.delayed(const Duration(seconds: 1));
     }
   }
 
@@ -546,11 +522,13 @@ class SupabaseService {
     required String senderPhotoUrl,
     required String receiverId,
     required String receiverName,
+    String? receiverPhotoUrl,
     required int value,
     int count = 1,
     String? comboId,
     int comboCount = 1,
     List<int>? preDrawnMultipliers,
+    String? giftCategoryId,
   }) async {
     int totalWonCoins = 0;
     int maxMultiplier = 0;
@@ -558,7 +536,32 @@ class SupabaseService {
     List<int> multipliers = [];
     num serverNewBalance = 0;
     final totalCost = value * count;
-    final bool isSelfSend = senderId == receiverId;
+    // معرّف ثابت للرسالة يستخدمه الإطار الاستباقي والإطار الكامل بعد التسوية،
+    // فيمنع المسار البطيء من إعادة حقن نفس الصف عند وصول room_messages.
+    final luckyMsgId = const Uuid().v4();
+
+    // ⚡ إطار مرئي استباقي (Hijoy-style): أنيميشن/تحليق/صوت يصل لبقية أعضاء
+    //    الغرفة في لحظة الضغطة، قبل رحلة RPC. لا يحمل أي بيانات فوز أو رصيد،
+    //    فالتسوية تظل الحاكمة والإطار الكامل بعدها يحمل النتيجة الحقيقية.
+    unawaited(ProtoGiftPushService.instance.sendLuckyGift(
+      roomId: roomId,
+      giftId: giftId,
+      giftName: giftNameAr,
+      giftIcon: giftIconUrl,
+      giftCoverUrl: giftCoverUrl,
+      animationAsset: svgaAnimUrl ?? '',
+      senderId: senderId,
+      senderName: senderName,
+      senderPhotoUrl: senderPhotoUrl,
+      receiverId: receiverId,
+      receiverName: receiverName,
+      count: count,
+      value: value,
+      comboId: comboId ?? luckyMsgId,
+      comboCount: comboCount,
+      messageId: luckyMsgId,
+      isPreview: true,
+    ));
 
     try {
       // 1. استدعاء المعاملة الذرية من Supabase عبر RPC (process_lucky_gift)
@@ -662,7 +665,10 @@ class SupabaseService {
           luckyTargetPct > 0 ? ((value * luckyTargetPct) / 100.0).round() : 0;
 
       // 3. بث رسالة الغرفة عبر room_messages في Supabase
-      final luckyMsgId = const Uuid().v4();
+      // معرّفات ثابتة لرسالة النظام وصف البث — تُرسل داخل البث السريع ليستخدمها
+      // الطرف المستقبل ويمنع الازدواج عند وصول الصفوف الحقيقية بعدين.
+      final winMsgId = const Uuid().v4();
+      final bCastId = const Uuid().v4();
       final luckyGiftPayload = {
         'gift_icon': giftIconUrl,
         'image_url': giftIconUrl,
@@ -729,16 +735,59 @@ class SupabaseService {
           ))
           .catchError((_) => false));
 
-      // رسالة نظام مرئية لجميع مستخدمي الغرفة لإعلان الفائز بالمحظوظ
-      if (totalWonCoins > 0 || maxMultiplier > 1) {
-        final winnerText = maxMultiplier > 1
-            ? '🍀 $receiverName فاز بالمحظوظ! مضاعف ${maxMultiplier}X — ربح $totalWonCoins 🪙'
-            : '🍀 $receiverName فاز بهدية الحظ "$giftNameAr" وربح $totalWonCoins 🪙!';
+      // ⚡ بث ثنائي للهدية المحظوظة (Protobuf). الإطار الواحد يحمل الآن
+      //    رسالة النظام + نص البانر + كروت المضاعفات + بيانات البانر الكبير،
+      //    فتصل كلها بنفس سرعة نص الفوز بدل انتظار room_messages/broadcasts.
+      final String winnerText = (totalWonCoins > 0 || maxMultiplier > 1)
+          ? (maxMultiplier > 1
+              ? '🍀 $receiverName فاز بالمحظوظ! مضاعف ${maxMultiplier}X — ربح $totalWonCoins 🪙'
+              : '🍀 $receiverName فاز بهدية الحظ "$giftNameAr" وربح $totalWonCoins 🪙!')
+          : '';
+      // ⛔ اللافتات تبدأ من الحد الأدنى للمضاعف (افتراضياً 5X):
+      //    لا نبث ولا نحقن محلياً أي مضاعف 1X/2X/3X/4X إطلاقاً.
+      final int minLuckyBannerMult =
+          DynamicConfigService().luckyBannerMinMultiplier;
+      final bool shouldShowLuckyBanner =
+          maxMultiplier >= minLuckyBannerMult || isBigWin;
+      final String broadcastText = shouldShowLuckyBanner
+          ? '$senderName 🍀 $giftNameAr x$count (فاز بمضاعف ${maxMultiplier}X — $totalWonCoins 🪙)'
+          : '';
+
+      unawaited(ProtoGiftPushService.instance.sendLuckyGift(
+        roomId: roomId,
+        giftId: giftId,
+        giftName: giftNameAr,
+        giftIcon: giftIconUrl,
+        giftCoverUrl: giftCoverUrl,
+        animationAsset: svgaAnimUrl ?? '',
+        senderId: senderId,
+        senderName: senderName,
+        senderPhotoUrl: senderPhotoUrl,
+        receiverId: receiverId,
+        receiverName: receiverName,
+        count: count,
+        value: value,
+        jackpotMultiplier: maxMultiplier,
+        wonCoins: totalWonCoins,
+        multipliers: multipliers,
+        isBigWin: isBigWin,
+        winnerText: winnerText,
+        systemMessageId: winMsgId,
+        broadcastText: broadcastText,
+        broadcastId: shouldShowLuckyBanner ? bCastId : '',
+        customSvgaUrl: svgaAnimUrl ?? '',
+        comboId: comboId ?? luckyMsgId,
+        comboCount: comboCount,
+        periodSec: 0,
+        messageId: luckyMsgId,
+      ));
+
+      // رسالة نظام مرئية لجميع مستخدمي الغرفة لإعلان الفائز بالمحظوظ.
+      // نفس الـ UUID أُرسل في البث السريع (system_message_id) لمنع التكرار.
+      if (winnerText.isNotEmpty) {
         unawaited(_ds
             .sendMessage(MessageModel(
-              // ✅ UUID صالح — '${uuid}_win' كان مرفوضاً من PostgREST
-              //    (msg_id نوعه UUID) فلا تصل رسالة فوز الحظ للنظام.
-              msgId: const Uuid().v4(),
+              msgId: winMsgId,
               roomId: roomId,
               senderUid: 'system',
               senderName: 'نظام',
@@ -750,33 +799,61 @@ class SupabaseService {
             .catchError((_) => false));
       }
 
-      // 5. بث نص الفوز لكافة الغرف فوراً عبر جدول broadcasts
-      //    نفس النص الذي يراه المستخدم في شات الغرفة.
-      //    ⛔ اللافتات تبدأ من الحد الأدنى للمضاعف (افتراضياً 5X):
-      //    لا نبث ولا نحقن محلياً أي مضاعف 1X/2X/3X/4X إطلاقاً.
-      final int minLuckyBannerMult =
-          DynamicConfigService().luckyBannerMinMultiplier;
-      final bool shouldShowLuckyBanner =
-          maxMultiplier >= minLuckyBannerMult || isBigWin;
-
+      // 5. بث نص الفوز لكافة الغرف فوراً عبر جدول broadcasts (مسار التخزين).
+      //    النص نفسه أُرسل قبل قليل في البث السريع (broadcast_text/broadcast_id)،
+      //    فالصف هنا للمحفوظات فقط ولن يتكرر عرضه عند الطرف المستقبل.
       if (shouldShowLuckyBanner) {
-        final String broadcastContent =
-            '$senderName 🍀 $giftNameAr x$count (فاز بمضاعف ${maxMultiplier}X — $totalWonCoins 🪙)';
-
-        final String bCastId = const Uuid().v4();
         unawaited(_ds
             .recordBroadcast(
               senderUid: senderId,
               senderName: senderName,
               senderPhotoUrl: senderPhotoUrl,
               roomId: roomId,
-              content: broadcastContent,
+              content: broadcastText,
               giftIcon: giftIconUrl,
               multiplier: maxMultiplier,
               type: 'lucky_gift',
               broadcastId: bCastId,
+              categoryId: giftCategoryId,
             )
             .catchError((_) => false));
+
+        // ✅ صف بث ثانٍ مخصص للافة فيديو فوز المحظوظ (lucky_win):
+        //   sender_* هنا تمثل الفائز (المستلم) وليس مرسل الهدية، والمبلغ
+        //    يُكتب داخل content بصيغة «... — ربح N 🪙» ليسحبه العميل.
+        if (maxMultiplier >= 5) {
+          unawaited(_ds
+              .recordBroadcast(
+                senderUid: receiverId,
+                senderName: receiverName,
+                senderPhotoUrl: receiverPhotoUrl,
+                roomId: roomId,
+                roomName: '',
+                content: winnerText.isNotEmpty
+                    ? winnerText
+                    : '🍀 $receiverName فاز بالمحظوظ! مضاعف ${maxMultiplier}X — ربح $totalWonCoins 🪙',
+                giftIcon: giftIconUrl,
+                multiplier: maxMultiplier,
+                type: 'lucky_win',
+                categoryId: giftCategoryId,
+              )
+              .catchError((_) => false));
+
+          // ✅ عرض محلي فوري للمرسل — لا ينتظر رحلة البث回来 من
+          //    السيرفر (التي قد تتأخر ثوانٍ). عند وصول البث الحقيقي
+          //    يتجاهله GlobalBannerService كمكرر عبر _recentLuckyWinKeys.
+          GlobalBannerService.instance.showLuckyWinVideo({
+            'id': '${luckyMsgId}_luckwinvideo_local',
+            'senderName': receiverName,
+            'senderAvatar': receiverPhotoUrl,
+            'winnerUid': receiverId,
+            'multiplier': maxMultiplier,
+            'totalWon': totalWonCoins,
+            'roomId': roomId,
+            'roomName': '',
+            'categoryId': giftCategoryId,
+          });
+        }
 
         // ⛔ لا حقن محلي لنص الفوز — يُعرض فقط عبر البث القادم من السيرفر
         //    (Realtime/Pusher) حتى لا تظهر رسالة محلية غير موثّقة.
@@ -784,19 +861,6 @@ class SupabaseService {
 
       // نص الفوز يصل لكل الأجهزة (بما فيها المرسل) عبر Supabase Realtime
       // مع polling احتياطي كل 500ms في GlobalBannerService.
-
-      if (isBigWin || maxMultiplier >= 10) {
-        unawaited(_ds
-            .recordGlobalAnnouncement(
-              type: 'lucky_big_win',
-              senderName: senderName,
-              giftName: giftNameAr,
-              roomId: roomId,
-              multiplier: maxMultiplier,
-              totalWon: totalWonCoins,
-            )
-            .catchError((_) => false));
-      }
 
       // 6. العمليات الخلفية غير المعطِّلة: ماس المستلم + سجلات الهدايا + أهداف
       //    الوكالة + إشعار الاستلام. هذه الخطوات كانت تُنتظر قبل كتابة رسالة
@@ -937,82 +1001,131 @@ class SupabaseService {
           ))
           .catchError((_) => false);
 
+      // ⚡ بث ثنائي فوري قبل خصم الكوينز (زي مسار الرسالة الاستباقية تماماً):
+      //    العرض يصل لبقية الغرفة في نفس لحظة الضغطة بدل انتظار RPC الخصم.
+      //    البث للعرض فقط ولا يخصم/يضيف رصيداً؛ ولو فشل الخصم نبعت إلغاءً.
+      final giftPushFuture = ProtoGiftPushService.instance.sendGift(
+        roomId: roomId,
+        giftId: giftId,
+        giftName: giftName,
+        giftIcon: staticCover,
+        animationAsset: animAsset,
+        senderId: senderId,
+        senderName: senderName,
+        senderPhotoUrl: senderPhotoUrl ?? '',
+        receiverId: receiverId,
+        receiverName: receiverName,
+        count: count,
+        value: value,
+        messageId: giftMsgId,
+        receiverIds: [receiverId],
+      );
+
       onProgress?.call(0.1);
       onProgress?.call(0.3);
-      // ⚡ خصم atomic بطلب واحد (RPC) — بدون قراءة مسبقة وبدون قائمة انتظار
-      // فيصبح إرسال الهدية أسرع بكثير عند الكومبو/الضغط المطوّل
-      final spendRes = await _ds.spendUserCoins(senderId, totalCost);
+
+      // 🛡️ 1. محاولة الإرسال السيادي الذري من السيرفر حصراً (Server-Authoritative Send Gift RPC)
+      //    يقوم بالخصم، والإيداع، وتسجيل الهدية، وتحديث الغرفة، وحساب الوكالة في حركة ذرية واحدة غير قابلة للتجزئة
+      final String idemKey = 'gift_${giftMsgId}';
+      final authoritativeRes = await _ds.sendGiftAuthoritative(
+        senderId: senderId,
+        receiverId: receiverId,
+        roomId: roomId,
+        giftId: giftId,
+        count: count,
+        idempotencyKey: idemKey,
+      );
+
       final bool deducted;
-      if (spendRes != null) {
-        deducted = spendRes['ok'] == true;
+      final bool isAuthoritativeSuccess = authoritativeRes != null && authoritativeRes['ok'] == true;
+
+      if (isAuthoritativeSuccess) {
+        deducted = true;
+      } else if (authoritativeRes != null && authoritativeRes['error'] == 'insufficient_coins') {
+        deducted = false;
       } else {
-        // احتياطي: إذا لم يكن RPC مُطبَّقاً على السيرفر بعد
-        deducted = await _serializeCoinTx(() async {
-          final sUser = await _ds.getUser(senderId);
-          final currentCoins = sUser?.coins ?? 0;
-          if (currentCoins < totalCost) return false;
-          return _ds.updateUser(senderId, {
-            'coins': currentCoins - totalCost,
-            'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+        // احتياطي: إذا لم يكن RPC السيادي مضافاً في بيئة العمل بعد
+        final spendRes = await _ds.spendUserCoins(senderId, totalCost);
+        if (spendRes != null) {
+          deducted = spendRes['ok'] == true;
+        } else {
+          deducted = await _serializeCoinTx(() async {
+            final sUser = await _ds.getUser(senderId);
+            final currentCoins = sUser?.coins ?? 0;
+            if (currentCoins < totalCost) return false;
+            return _ds.updateUser(senderId, {
+              'coins': currentCoins - totalCost,
+              'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+            });
           });
-        });
+        }
       }
+
       if (!deducted) {
         // فشل الخصم: احذف رسالة الهدية التي بُثت استباقياً حتى لا
         // يبقى أثر لهدية لم تُرسل فعلياً.
         unawaited(giftMsgFuture.then((ok) {
           if (ok == true) _ds.deleteRoomMessage(giftMsgId);
         }).catchError((_) {}));
+        // الإطار المرئي سبق الخصم — اطلب من بقية الأجهزة حذف أثره.
+        unawaited(giftPushFuture.then((_) {
+          return ProtoGiftPushService.instance.cancelGift(
+            roomId: roomId,
+            messageId: giftMsgId,
+          );
+        }).catchError((_) => false));
         onProgress?.call(0.0);
         return false;
       }
 
       onProgress?.call(0.5);
-      // عدّاد الهدايا المستلمة للمرسل في حالة الإرسال لنفسه
-      if (isSelfSend) {
-        unawaited(() async {
-          try {
-            final sUser = await _ds.getUser(senderId);
-            if (sUser == null) return;
-            await _ds.updateUser(senderId, {
-              'total_gifts_received':
-                  sUser.totalGiftsReceived + hostDiamonds,
-            });
-          } catch (_) {}
-        }());
-      }
 
-      // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
-      if (isSelfSend) {
-        // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
-        await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
+      // إذا نجحت الدالة السيادية (Authoritative)، فجميع العمليات (إيداع، وكالة، سنت_جيفت، غرفة) نُفذت ذرياً داخل السيرفر بالفعل!
+      if (!isAuthoritativeSuccess) {
+        // عدّاد الهدايا المستلمة للمرسل في حالة الإرسال لنفسه
+        if (isSelfSend) {
+          unawaited(() async {
+            try {
+              final sUser = await _ds.getUser(senderId);
+              if (sUser == null) return;
+              await _ds.updateUser(senderId, {
+                'total_gifts_received':
+                    sUser.totalGiftsReceived + hostDiamonds,
+              });
+            } catch (_) {}
+          }());
+        }
+
+        // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
+        if (isSelfSend) {
+          await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
+        } else {
+          await _ds.bumpUserStat(
+              receiverId, 'total_gifts_received', hostDiamonds);
+          await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
+        }
+
+        onProgress?.call(0.7);
+        // 3. تسجيل الهدية في السجل ورفع عدّادات الغرفة (الخلفية)
+        unawaited(_ds
+            .recordSentGift(
+              roomId: roomId,
+              giftId: giftId,
+              giftName: giftName,
+              animationAsset: effectiveIcon,
+              senderId: senderId,
+              senderName: senderName,
+              senderPhotoUrl: senderPhotoUrl,
+              receiverId: receiverId,
+              receiverName: receiverName,
+              value: value,
+              count: count,
+            )
+            .catchError((_) => false));
+        unawaited(_ds.incrementRoomGifts(roomId, totalCost));
       } else {
-        // ✅ عدّاد المستلم عبر RPC ذرّي — لا PATCH مباشر على
-        //    حساب مستخدم آخر (حارس الكتابة).
-        await _ds.bumpUserStat(
-            receiverId, 'total_gifts_received', hostDiamonds);
-        // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
-        await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
+        onProgress?.call(0.7);
       }
-
-      onProgress?.call(0.7);
-      // 3. تسجيل الهدية في السجل ورفع عدّادات الغرفة (الخلفية)
-      unawaited(_ds
-          .recordSentGift(
-            roomId: roomId,
-            giftId: giftId,
-            giftName: giftName,
-            animationAsset: effectiveIcon,
-            senderId: senderId,
-            senderName: senderName,
-            senderPhotoUrl: senderPhotoUrl,
-            receiverId: receiverId,
-            receiverName: receiverName,
-            value: value,
-            count: count,
-          )
-          .catchError((_) => false));
-      unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
       onProgress?.call(0.9);
 
@@ -1396,12 +1509,13 @@ class SupabaseService {
           yield rooms;
         } catch (_) {}
         // مع Realtime: يصل التحديث لحظياً عند أي تغيير في rooms،
-        // والـ polling يصبح مجرد شبكة أمان بطيئة (12 ثانية).
+        // والـ polling يصبح مجرد شبكة أمان بطيئة (8 ثوانٍ).
+        // الكاش داخل getAllRooms يخفف الحمل أكثر (15 ثانية).
         await rt.waitForTableChange(
           topic: 'rooms',
           tables: const {'rooms'},
-          fallback: const Duration(seconds: 4),
-          safety: const Duration(seconds: 12),
+          fallback: const Duration(seconds: 8),
+          safety: const Duration(seconds: 20),
         );
       }
     } finally {
@@ -1438,8 +1552,11 @@ class SupabaseService {
   Future<bool> updateRoom(String roomId, Map<String, dynamic> updates) =>
       _ds.updateRoom(roomId, updates);
 
-  Future<bool> clearRoomCharisma(String roomId) =>
-      _ds.clearRoomCharisma(roomId);
+  Future<bool> clearRoomCharisma(String roomId, {int? clearedAt}) =>
+      _ds.clearRoomCharisma(roomId, clearedAt: clearedAt);
+
+  Future<bool> clearRoomMessages(String roomId, {int? clearedAt}) =>
+      _ds.clearRoomMessages(roomId, clearedAt: clearedAt);
 
   Future<void> updateRoomBackground(String roomId, String bgUrl) async {
     await _ds.updateRoom(roomId, {'bg_image': bgUrl});
@@ -1510,8 +1627,17 @@ class SupabaseService {
           var needsFull = false;
           for (final c in pending) {
             final rec = c.record;
+            if (c.type == 'DELETE') {
+              final delUid = (c.oldRecord['uid'] ?? rec['uid'])?.toString() ?? '';
+              if (delUid.isNotEmpty) {
+                byUid.remove(delUid);
+              } else {
+                needsFull = true;
+              }
+              continue;
+            }
             final uid = rec['uid']?.toString() ?? '';
-            if (c.type == 'DELETE' || uid.isEmpty) {
+            if (uid.isEmpty) {
               needsFull = true;
               continue;
             }
@@ -1578,23 +1704,69 @@ class SupabaseService {
       topic: topic,
       filter: 'room_id=eq.$roomId',
     );
+
+    // كاش محلي سريع لحالة المقاعد لتحديثها لحظياً عند وصول broadcast بدون انتظار استعلام DB
+    final Map<int, Map<String, dynamic>> localSeatState = {};
+
+    // الاستماع لأحداث البث اللحظية للمقاعد (أخذ مقعد / مغادرة / كتم)
+    final broadcastSub = rt.broadcasts.listen((event) {
+      if (event['event'] == 'seat_change') {
+        final data = event['data'];
+        if (data is Map) {
+          final action = data['action']?.toString();
+          final seatIdx = (data['seat_index'] as num?)?.toInt() ?? -1;
+          if (action == 'take' && seatIdx >= 0) {
+            final user = data['user'];
+            if (user is Map) {
+              localSeatState[seatIdx] = Map<String, dynamic>.from(user);
+            }
+          } else if (action == 'leave') {
+            if (seatIdx >= 0) {
+              localSeatState.remove(seatIdx);
+            } else {
+              final uid = data['user']?['uid']?.toString() ?? data['user']?['id']?.toString();
+              if (uid != null && uid.isNotEmpty) {
+                localSeatState.removeWhere((_, u) => (u['uid'] == uid || u['id'] == uid));
+              }
+            }
+          } else if (action == 'mute' && seatIdx >= 0 && localSeatState.containsKey(seatIdx)) {
+            localSeatState[seatIdx]!['is_muted'] = data['is_muted'] == true;
+          }
+        }
+      }
+    });
+
     try {
       while (true) {
         try {
           final seats = await _ds.getSeats(roomId);
-          if (seats != null) yield seats;
-        } catch (_) {}
+          if (seats != null) {
+            localSeatState.clear();
+            localSeatState.addAll(seats);
+            yield Map<int, Map<String, dynamic>>.from(localSeatState);
+          } else if (localSeatState.isNotEmpty) {
+            yield Map<int, Map<String, dynamic>>.from(localSeatState);
+          }
+        } catch (_) {
+          if (localSeatState.isNotEmpty) {
+            yield Map<int, Map<String, dynamic>>.from(localSeatState);
+          }
+        }
         await rt.waitForTableChange(
           topic: topic,
           tables: const {'room_seats'},
-          fallback: const Duration(seconds: 1),
-          safety: const Duration(seconds: 4),
+          fallback: const Duration(seconds: 2),
+          safety: const Duration(seconds: 5),
         );
       }
     } finally {
+      broadcastSub.cancel();
       rt.unsubscribeTopic(topic);
     }
   }
+
+  Future<Map<int, Map<String, dynamic>>?> getSeats(String roomId) =>
+      _ds.getSeats(roomId);
 
   Future<bool> takeSeat(String roomId, int seatIndex, UserModel user) =>
       _ds.takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
@@ -1798,18 +1970,48 @@ class SupabaseService {
   }
 
   Stream<List<GiftCategory>> giftCategoriesStream() async* {
-    int failures = 0;
-    while (true) {
-      var ok = false;
-      try {
-        final cats = await _ds.getGiftCategories();
-        yield cats;
-        ok = true;
-      } catch (_) {}
-      failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
-      final delayMs =
-          ok ? 20000 : const [20000, 30000, 45000, 60000][failures];
-      await Future.delayed(Duration(milliseconds: delayMs));
+    // ✅ القسم المضاف من لوحة التحكم لازم يظهر فوراً: كاش الذاكرة مدته
+    //    10 دقائق، فالقراءة بالكاش كانت تُخفي أي إضافة حتى تنتهي المدة.
+    //    - أول قراءة + أي حدث Realtime ⇒ شبكة إجبارية (allowCache: false)
+    //    - الدورات العادية ⇒ من الكاش لتقليل الضغط
+    const topic = 'gift_categories:all';
+    final rt = SupabaseRealtimeService.instance;
+    rt.subscribeTable(
+      table: 'gift_categories',
+      topic: topic,
+      events: const ['INSERT', 'UPDATE', 'DELETE'],
+    );
+    bool forceNetwork = true;
+    final sub = rt.changes.listen((change) {
+      if (change.table == 'gift_categories') forceNetwork = true;
+    });
+    try {
+      int failures = 0;
+      while (true) {
+        var ok = false;
+        try {
+          // نقرأ العلم ونصفّره **قبل** الجلب: أي تغيير يصل أثناء الجلب
+          // يرفعه من جديد فيُجبر الدورة الجاية على القراءة من الشبكة.
+          final shouldForce = forceNetwork;
+          forceNetwork = false;
+          final cats = await _ds.getGiftCategories(allowCache: !shouldForce);
+          yield cats;
+          ok = true;
+        } catch (_) {}
+        failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
+        final delayMs =
+            ok ? 20000 : const [20000, 30000, 45000, 60000][failures];
+        // استيقاظ فوري عند INSERT/UPDATE/DELETE على gift_categories،
+        // وإلا ننتظر المهلة الدورية (محاكاة الـ polling القديم).
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'gift_categories'},
+          fallback: Duration(milliseconds: delayMs),
+        );
+      }
+    } finally {
+      sub.cancel();
+      rt.unsubscribeTopic(topic);
     }
   }
 
@@ -2816,10 +3018,22 @@ class SupabaseService {
                   Map<String, dynamic>.from(e as Map)))
               // ✅ لا تظهر إشعارات الهدايا في رسائل النظام —
               //    المستخدم لا يريد رسالة «X أرسل لك هدية» هناك.
-              .where((n) =>
-                  n.type != 'gift' &&
-                  n.type != 'cp_gift' &&
-                  n.type != 'gift_from_admin')
+              //    استثناء: دعوات ربط CP (cp_relationship_request)
+              //    لازم تظهر عشان الطرف يقدر يقبل/يرفض.
+              .where((n) {
+                if (n.type == 'gift' ||
+                    n.type == 'gift_from_admin') {
+                  return false;
+                }
+                if (n.type == 'cp_gift') {
+                  final action = n.data?['action']?.toString();
+                  final reqId =
+                      n.data?['request_id']?.toString() ?? '';
+                  return action == 'cp_relationship_request' ||
+                      reqId.isNotEmpty;
+                }
+                return true;
+              })
               .toList();
         }
       } catch (_) {}
@@ -2913,6 +3127,16 @@ class SupabaseService {
     });
     return controller.stream;
   }
+
+  Future<List<gm.SentGiftModel>> getSentGiftsPaged({
+    DateTime? after,
+    String roomId = '',
+    int pageSize = 1000,
+    int maxRows = 20000,
+  }) =>
+      _ds.getSentGiftsPaged(
+          after: after, roomId: roomId, pageSize: pageSize, maxRows: maxRows);
+
   Future<List<Map<String, dynamic>>> getGlobalRankings(
       {required bool isWealth,
       required String timeframe,
@@ -2942,8 +3166,8 @@ class SupabaseService {
         final photo = isWealth ? (g.senderPhotoUrl ?? '') : '';
         final cost = (g.value * g.count).toInt();
         totals[uid] = (totals[uid] ?? 0) + cost;
-        if (!userDetails.containsKey(uid) ||
-            (userDetails[uid]!['photoUrl'] as String).isEmpty) {
+        final existingPhoto = userDetails[uid]?['photoUrl']?.toString() ?? '';
+        if (!userDetails.containsKey(uid) || existingPhoto.isEmpty) {
           userDetails[uid] = {
             'id': uid,
             'name': name.isNotEmpty ? name : 'مستخدم',
@@ -2959,35 +3183,34 @@ class SupabaseService {
       // جلب الآيدي الرقمي الحقيقي (custom_id) والبروفايل لكافة المتصدرين
       if (topUids.isNotEmpty) {
         try {
-          final usersRes = await _sb
-              .from('users')
-              .select('id, custom_id, name, avatar, photo_url, level, wealth_level, gems_level')
-              .inFilter('id', topUids);
-          for (final u in usersRes) {
-            final uMap = Map<String, dynamic>.from(u as Map);
-            final uId = uMap['id']?.toString() ?? '';
-            if (uId.isNotEmpty) {
+          final inFilter = topUids.map((k) => '"$k"').join(',');
+          final uUrl = Uri.parse(
+              '$_baseUrl/rest/v1/users?uid=in.($inFilter)&select=uid,name,custom_id,photo_url,level');
+          final uRes = await SafeHttp.get(uUrl, headers: _headers,
+              timeout: const Duration(seconds: 15));
+          if (uRes.statusCode == 200) {
+            final List uList = jsonDecode(uRes.body);
+            for (final u in uList) {
+              final uMap = Map<String, dynamic>.from(u as Map);
+              final uId = (uMap['uid'] ?? uMap['id'])?.toString() ?? '';
               final cId = (uMap['custom_id'] ?? '').toString();
               final uName = (uMap['name'] ?? '').toString();
-              final uPhoto =
-                  (uMap['photo_url'] ?? uMap['avatar'] ?? '').toString();
-              if (userDetails.containsKey(uId)) {
-                userDetails[uId]!['custom_id'] = cId;
-                if (uName.isNotEmpty) userDetails[uId]!['name'] = uName;
-                if (uPhoto.isNotEmpty) userDetails[uId]!['photoUrl'] = uPhoto;
-                userDetails[uId]!['level'] = uMap['level'];
-                userDetails[uId]!['wealth_level'] = uMap['wealth_level'];
-                userDetails[uId]!['gems_level'] = uMap['gems_level'];
-              } else {
-                userDetails[uId] = {
-                  'id': uId,
-                  'custom_id': cId,
-                  'name': uName,
-                  'photoUrl': uPhoto,
-                  'level': uMap['level'],
-                  'wealth_level': uMap['wealth_level'],
-                  'gems_level': uMap['gems_level'],
-                };
+              final uPhoto = (uMap['photo_url'] ?? '').toString();
+              if (uId.isNotEmpty) {
+                if (userDetails.containsKey(uId)) {
+                  userDetails[uId]!['custom_id'] = cId;
+                  if (uName.isNotEmpty) userDetails[uId]!['name'] = uName;
+                  if (uPhoto.isNotEmpty) userDetails[uId]!['photoUrl'] = uPhoto;
+                  userDetails[uId]!['level'] = uMap['level'] ?? 1;
+                } else {
+                  userDetails[uId] = {
+                    'id': uId,
+                    'custom_id': cId,
+                    'name': uName,
+                    'photoUrl': uPhoto,
+                    'level': uMap['level'] ?? 1,
+                  };
+                }
               }
             }
           }
@@ -3036,6 +3259,32 @@ class SupabaseService {
     }
   }
 
+  /// جلب بيانات الترتيب مباشرة من الـ Views السريعة في Supabase
+  Future<List<Map<String, dynamic>>> getRankingsFromView(
+      String viewName, {int limit = 50}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/$viewName?select=*&limit=$limit');
+      final res = await SafeHttp.get(url, headers: _headers, timeout: const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .where((e) {
+              final p = (e['points'] as num?)?.toInt() ??
+                  (e['amount'] as num?)?.toInt() ??
+                  (e['score'] as num?)?.toInt() ??
+                  (e['total_gifts'] as num?)?.toInt() ??
+                  0;
+              return p > 0;
+            })
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[getRankingsFromView] $viewName error: $e');
+    }
+    return [];
+  }
+
   /// أعلى المراكز في الترتيب اليومي (الثروة/السحر/الغرف) مباشرةً من **نفس
   /// الـ Views التي تقرأ منها شاشة الترتيب** (`daily_wealth_ranking`,
   /// `daily_charm_ranking`, `daily_rooms_ranking`) — فتتطابق بطاقات
@@ -3050,21 +3299,24 @@ class SupabaseService {
     };
     try {
       final results = await Future.wait<dynamic>([
+        // SupabaseQueryBuilder.catchError يمرّر الدالة إلى Future<List<Map>>
+        // الأصلي — يجب أن يُرجع نفس النوع، وإلا رمى Dart "onError must return
+        // a value of the future's type" وأفقد البطاقات كلها عند أي فشل REST.
         _sb
             .from('daily_wealth_ranking')
             .select('*')
             .limit(3)
-            .catchError((_) => []),
+            .catchError((_) => <Map<String, dynamic>>[]),
         _sb
             .from('daily_charm_ranking')
             .select('*')
             .limit(3)
-            .catchError((_) => []),
+            .catchError((_) => <Map<String, dynamic>>[]),
         _sb
             .from('daily_rooms_ranking')
             .select('*')
             .limit(3)
-            .catchError((_) => []),
+            .catchError((_) => <Map<String, dynamic>>[]),
       ]);
 
       List<Map<String, dynamic>> norm(dynamic rows) {
@@ -3177,8 +3429,43 @@ class SupabaseService {
         });
       }
 
-      // ✅ لا نضيف غرفاً من جدول rooms: إجماليات عمر الغرفة ستظهر
-      //    متطابقة في كل الفترات. الغرف هنا فقط من أرسلوا هدايا في الفترة.
+      // إذا لم تكن هناك هدايا للغرف في هذه الفترة، نعرض أكثر الغرف نشاطاً من جدول rooms
+      if (result.isEmpty) {
+        try {
+          var allRooms = await _ds.getAllRooms();
+          if (allRooms.isEmpty) {
+            // استعلام مباشر سريع لتفادي أي تعليق في دوال الإحصائيات الشهرية
+            final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc&limit=20');
+            final rRes = await SafeHttp.get(url, headers: _headers, timeout: const Duration(seconds: 8));
+            if (rRes.statusCode == 200) {
+              final List rList = jsonDecode(rRes.body);
+              allRooms = rList.map((e) => RoomModel.fromMap(e as Map<String, dynamic>)).toList();
+            }
+          }
+          for (final r in allRooms.take(20)) {
+            final amt = r.totalGifts > 0 ? r.totalGifts : (r.hotValue > 0 ? r.hotValue : 100);
+            final photo = r.roomPhotoUrl.isNotEmpty ? r.roomPhotoUrl : r.bgImage;
+            result.add({
+              'id': r.roomId,
+              'uid': r.roomId,
+              'roomId': r.roomId,
+              'room_id': r.roomId,
+              'name': r.name.isNotEmpty ? r.name : 'غرفة #${r.roomId}',
+              'photoUrl': photo,
+              'photo_url': photo,
+              'room_photo_url': photo,
+              'host_name': r.hostName,
+              'password': r.password,
+              'amount': amt,
+              'points': amt,
+              'total_value': amt,
+              'total_gifts': amt,
+              'hot_value': amt,
+            });
+          }
+        } catch (_) {}
+      }
+
       return result;
     } catch (e) {
       debugPrint('[getRoomGlobalRanking] error: $e');
@@ -3214,49 +3501,34 @@ class SupabaseService {
         cutoff = now.subtract(const Duration(days: 30));
       }
 
-      // احترام وقت تصفير كاريزما الغرفة: نستبعد الهدايا الأقدم من التصفير
-      // من ترتيب الغرفة فقط دون المساس بالترتيب العام.
-      DateTime? clearedAt;
-      if (roomId.isNotEmpty) {
-        try {
-          // ✅ نقرأ `select=*` بدل عمود `charisma_cleared_at` المفرد —
-          //    لأن العمود غير موجود بعد في بعض المشاريع فيُرجع الطلب 400
-          //    ويُسقط حساب الحد الأدنى. نقرأه إن وُجد فقط.
-          final roomRes = await SafeHttp.get(
-            Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=*&limit=1'),
-            headers: _headers,
-          );
-          if (roomRes.statusCode == 200) {
-            final roomList = jsonDecode(roomRes.body);
-            if (roomList is List && roomList.isNotEmpty) {
-              final ms = ((roomList.first as Map)['charisma_cleared_at'] as num?)?.toInt() ?? 0;
-              if (ms > 0) {
-                clearedAt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
-              }
-            }
-          }
-        } catch (_) {}
-      }
-      final effectiveCutoff = (cutoff == null ||
-              (clearedAt != null && clearedAt.isAfter(cutoff)))
-          ? (clearedAt ?? cutoff)
-          : cutoff;
+      // ✅ شاشة الترتيب منفصلة تماماً عن تصفير كاريزما المقاعد:
+      // تصفير الكاريزما يؤثر فقط على عدادات المقاعد اللحظية للأشخاص الجالسين،
+      // بينما شاشة الترتيب تعتمد على الفترة الزمنية (يومي / أسبوعي / شهري)
+      // لتحفظ سجلات المتصدرين والهدايا بدون شطبها من الترتيب.
+      final effectiveCutoff = cutoff;
 
-      final allGifts =
+      // ✅ 1. محاولة جلب هدايا الغرفة حسب الوقت المحدد
+      var allGifts =
           await _ds.getSentGiftsPaged(after: effectiveCutoff, roomId: roomId);
-      if (allGifts.isEmpty) return [];
-
-      // ✅ تأكيد إضافي: ترتيب الغرفة يضم فقط مستخدمين أرسلوا هدايا
-      //    داخل هذه الغرفة بالضبط — لا هدايا من غرف أخرى ولا ترتيب عام.
-      final roomGifts = allGifts.where((g) => g.roomId == roomId).toList();
+      // ✅ 2. إذا كانت فارغة (مثلاً الهدايا أقدم من 24 ساعة)، نجلب هدايا الغرفة بدون تقييد زمني صارم
+      if (allGifts.isEmpty) {
+        allGifts = await _ds.getSentGiftsPaged(roomId: roomId, pageSize: 50, maxRows: 100);
+      }
+      // ✅ 3. محاولة مطابقة room_id بدون فواصل أو مسافات
+      final cleanRoomId = roomId.trim();
+      var roomGifts = allGifts.where((g) => g.roomId.trim() == cleanRoomId).toList();
+      if (roomGifts.isEmpty && allGifts.isNotEmpty) {
+        roomGifts = allGifts;
+      }
       if (roomGifts.isEmpty) return [];
 
-      // تصفير القائمة عند انتهاء الفترة أو تصفير كاريزما الغرفة
-      final filtered = effectiveCutoff != null
+      // إذا كانت هناك هدايا ضمن الفترة نأخذها، وإلا نستخدم آخر هدايا للغرفة
+      final filteredPeriod = effectiveCutoff != null
           ? roomGifts
-              .where((g) => g.timestamp.isAfter(effectiveCutoff))
+              .where((g) => !g.timestamp.toUtc().isBefore(effectiveCutoff.toUtc()))
               .toList()
           : roomGifts;
+      final filtered = filteredPeriod.isNotEmpty ? filteredPeriod : roomGifts;
 
       if (filtered.isEmpty) return [];
 
@@ -3277,27 +3549,26 @@ class SupabaseService {
 
       final sortedKeys = totals.keys.toList()
         ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
-      // ✅ أعلى 10 مرسلين/مستلمين داخل هذه الغرفة فقط.
-      final topKeys = sortedKeys.take(10).toList();
+      // ✅ أعلى 20 مرسلين/مستلمين داخل هذه الغرفة.
+      final topKeys = sortedKeys.take(20).toList();
 
-      // Fetch user profile info (photo_url, avatar, custom_id, level) for the ranked users
+      // Fetch user profile info (photo_url, avatar, custom_id, level, wealth_level, gems_level)
       final Map<String, Map<String, dynamic>> enrichedUsers = {};
       if (topKeys.isNotEmpty) {
         try {
           final inFilter = topKeys.map((k) => '"$k"').join(',');
           final uUrl = Uri.parse(
-              '$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level,wealth_level,gems_level');
-          final uRes = await SafeHttp.get(uUrl, headers: _headers);
+              '$_baseUrl/rest/v1/users?uid=in.($inFilter)&select=uid,name,custom_id,photo_url,level,wealth_level,gems_level');
+          final uRes = await SafeHttp.get(uUrl, headers: _headers,
+              timeout: const Duration(seconds: 15));
           if (uRes.statusCode == 200) {
             final List uList = jsonDecode(uRes.body);
             for (final u in uList) {
               final m = Map<String, dynamic>.from(u as Map);
-              final uidVal = m['uid']?.toString();
-              final idVal = m['id']?.toString();
-              if (uidVal != null && uidVal.isNotEmpty) {
+              final uidVal = m['uid']?.toString() ?? '';
+              if (uidVal.isNotEmpty) {
                 enrichedUsers[uidVal] = m;
               }
-              if (idVal != null && idVal.isNotEmpty) enrichedUsers[idVal] = m;
             }
           }
         } catch (_) {}
@@ -3353,7 +3624,10 @@ class SupabaseService {
       return result;
     } catch (e) {
       debugPrint('[SupabaseService] getRoomRankings error: $e');
-      return [];
+      // ✅ انقطاع الشبكة ≠ ترتيب فارغ: أعد آخر نسخة محفوظة (حتى لو انتهت
+      //    الـ TTL) حتى لا تظهر شاشة «لا توجد بيانات» بسبب DNS/timeout.
+      final stale = _roomRankingCache[cacheKey];
+      return stale?.data ?? [];
     }
   }
 

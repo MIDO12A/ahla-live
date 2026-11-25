@@ -11,11 +11,13 @@ class RealtimeChange {
   final String table;
   final String type; // INSERT / UPDATE / DELETE
   final Map<String, dynamic> record;
+  final Map<String, dynamic> oldRecord;
 
   const RealtimeChange({
     required this.table,
     required this.type,
     required this.record,
+    this.oldRecord = const {},
   });
 
   @override
@@ -28,6 +30,7 @@ class _RealtimeSub {
   final String table;
   final String? filter;
   final List<String> events;
+  final bool broadcast;
   int refCount = 1;
 
   _RealtimeSub({
@@ -35,6 +38,7 @@ class _RealtimeSub {
     required this.table,
     this.filter,
     required this.events,
+    this.broadcast = false,
   });
 }
 
@@ -87,6 +91,8 @@ class SupabaseRealtimeService {
       StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<RealtimeChange> _changes =
       StreamController<RealtimeChange>.broadcast();
+  final StreamController<Map<String, dynamic>> _broadcasts =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   /// أحداث realtime بصيغة موحّدة: {'event': 'room_message', 'data': row}
   /// (متوافق مع الكود القديم في شاشة الغرفة).
@@ -94,6 +100,10 @@ class SupabaseRealtimeService {
 
   /// كل تغييرات الجداول المشتركة.
   Stream<RealtimeChange> get changes => _changes.stream;
+
+  /// أحداث broadcast (بما فيها الحمولات الثنائية للهدايا).
+  /// الشكل: {'event': String, 'topic': String, 'data': Map}
+  Stream<Map<String, dynamic>> get broadcasts => _broadcasts.stream;
 
   /// متصل ومُنضمّ لقناة واحدة على الأقل.
   bool get isConnected => _socketOpen && _joinedAny;
@@ -228,12 +238,85 @@ class SupabaseRealtimeService {
     unsubscribeTopic('room_messages:$rid');
   }
 
+  /// قناة broadcast خاصة بالغرفة لنقل الحمولات الثنائية (Protobuf).
+  /// `self: true` ضروري ليستقبل المُرسِل حدثه هو أيضاً.
+  void subscribeGiftPush(String roomId) {
+    if (roomId.isEmpty) return;
+    subscribeTable(
+      table: 'gift_push',
+      topic: 'gift_push:$roomId',
+      events: const [],
+      broadcast: true,
+    );
+  }
+
+  void unsubscribeGiftPush(String roomId) {
+    if (roomId.isEmpty) return;
+    unsubscribeTopic('gift_push:$roomId');
+  }
+
+  /// إرسال حدث broadcast على قناة منضمّ إليها. ينتظر الـ phx_join أولاً
+  /// (السيرفر يتجاهل الأحداث المرسلة قبل الانضمام).
+  Future<bool> sendBroadcast({
+    required String roomId,
+    required String event,
+    required Map<String, dynamic> payload,
+    String channelPrefix = 'gift_push',
+  }) async {
+    start();
+    final topic = '$channelPrefix:$roomId';
+    if (!_liveTopics.contains(topic)) {
+      subscribeTable(
+        table: channelPrefix,
+        topic: topic,
+        broadcast: true,
+      );
+      for (var i = 0; i < 40 && !_liveTopics.contains(topic); i++) {
+        await Future.delayed(const Duration(milliseconds: 25));
+      }
+      if (!_liveTopics.contains(topic)) return false;
+    }
+    _sendRaw({
+      'topic': 'realtime:$topic',
+      'event': 'broadcast',
+      'payload': {
+        'event': event,
+        'payload': payload,
+      },
+      'ref': 'bc_${++_refSeq}',
+    });
+    return true;
+  }
+
+  /// بث حدث مقعد فوري (أخذ مقعد / مغادرة / كتم) لجميع الموجودين بالغرفة لحظياً
+  Future<bool> broadcastSeatChange({
+    required String roomId,
+    required String action, // 'take' | 'leave' | 'mute'
+    required int seatIndex,
+    Map<String, dynamic>? userData,
+    bool isMuted = false,
+  }) async {
+    return sendBroadcast(
+      roomId: roomId,
+      event: 'seat_change',
+      channelPrefix: 'gift_push',
+      payload: {
+        'action': action,
+        'seat_index': seatIndex,
+        'user': userData,
+        'is_muted': isMuted,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
+  }
+
   /// الاشتراك بجدول (أو نفس الجدول بفلتر/قناة مختلفة).
   void subscribeTable({
     required String table,
     required String topic,
     String? filter,
     List<String> events = const ['INSERT', 'UPDATE', 'DELETE'],
+    bool broadcast = false,
   }) {
     final existing = _subs[topic];
     if (existing != null) {
@@ -247,6 +330,7 @@ class SupabaseRealtimeService {
       table: table,
       filter: filter,
       events: events,
+      broadcast: broadcast,
     );
     _subs[topic] = sub;
     _ensureSocket();
@@ -279,16 +363,20 @@ class SupabaseRealtimeService {
       'topic': 'realtime:${sub.topic}',
       'event': 'phx_join',
       'payload': {
-        'config': {
-          'postgres_changes': sub.events
-              .map((e) => <String, dynamic>{
-                    'event': e,
-                    'schema': 'public',
-                    'table': sub.table,
-                    if (sub.filter != null) 'filter': sub.filter,
-                  })
-              .toList(),
-        },
+        'config': sub.broadcast
+            ? <String, dynamic>{
+                'broadcast': <String, dynamic>{'self': true},
+              }
+            : <String, dynamic>{
+                'postgres_changes': sub.events
+                    .map((e) => <String, dynamic>{
+                          'event': e,
+                          'schema': 'public',
+                          'table': sub.table,
+                          if (sub.filter != null) 'filter': sub.filter,
+                        })
+                    .toList(),
+              },
         if (isJwt) 'access_token': token,
       },
       'ref': ref,
@@ -317,16 +405,35 @@ class SupabaseRealtimeService {
       if (msg is! Map) return;
       final event = msg['event']?.toString() ?? '';
 
+      if (event == 'broadcast') {
+        final payload = msg['payload'];
+        if (payload is! Map) return;
+        final data = payload['payload'];
+        if (data is! Map) return;
+        final bcEvent = payload['event']?.toString() ?? '';
+        final bcData = {
+          'event': bcEvent,
+          'topic': (msg['topic']?.toString() ?? '')
+              .replaceFirst('realtime:', ''),
+          'data': Map<String, dynamic>.from(data),
+        };
+        _broadcasts.add(bcData);
+        _controller.add(bcData);
+        return;
+      }
+
       if (event == 'postgres_changes') {
         final payload = msg['payload'];
         if (payload is! Map) return;
         final data = payload['data'];
         if (data is! Map) return;
         final record = data['record'];
-        if (record is! Map) return;
+        final oldRecord = data['old_record'];
         final type = data['type']?.toString() ?? 'INSERT';
         final table = data['table']?.toString() ?? '';
-        final row = Map<String, dynamic>.from(record);
+        final recMap = record is Map ? Map<String, dynamic>.from(record) : <String, dynamic>{};
+        final oldMap = oldRecord is Map ? Map<String, dynamic>.from(oldRecord) : <String, dynamic>{};
+        final row = recMap.isNotEmpty ? recMap : oldMap;
 
         if (table == 'room_messages') {
           // نفس شكل حدث Pusher: room_message + الصف كاملاً
@@ -336,7 +443,7 @@ class SupabaseRealtimeService {
             'changeType': type,
           });
         }
-        _changes.add(RealtimeChange(table: table, type: type, record: row));
+        _changes.add(RealtimeChange(table: table, type: type, record: row, oldRecord: oldMap));
         return;
       }
 

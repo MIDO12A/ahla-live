@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../services/supabase_service.dart';
 import '../../../../services/dynamic_config_service.dart';
 import '../../../../services/level_service.dart';
 import '../../../../services/room_cup_service.dart';
 import '../../../../config/r.dart';
 import '../../user_profile/user_profile_screen.dart';
+import '../../rank/rank_screen.dart';
 import 'package:zero/core/dtext.dart';
 import '../../../../widgets/special_name_text.dart';
 
@@ -23,6 +26,60 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
 
   List<Map<String, dynamic>> _rankings = [];
   bool _isLoading = true;
+  String? _notice;
+  /// آخر نتيجة ناجحة — تُعرض عند انقطاع الشبكة بدل شاشة «لا توجد بيانات».
+  static final Map<String, List<Map<String, dynamic>>> _lastGood = {};
+  static const String _lastGoodPrefsKey = 'room_rank_last_good_v1';
+
+  /// استعادة آخر ترتيب محفوظ من القرص فور فتح الشيت — الكاش في الذاكرة
+  /// يضيع بعد إعادة تشغيل التطبيق، وهي الحالة التي تظهر فيها رسالة
+  /// «تعذّر الاتصال بالسيرفر» رغم وجود بيانات قديمة صالحة للعرض.
+  Future<void> _restoreLastGood() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_lastGoodPrefsKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      decoded.forEach((k, v) {
+        if (v is! List) return;
+        final list = v
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        if (list.isNotEmpty) {
+          _lastGood.putIfAbsent(k.toString(), () => list);
+        }
+      });
+      if (!mounted) return;
+      final key = _currentCacheKey();
+      final cached = _lastGood[key];
+      if (cached?.isNotEmpty == true) {
+        setState(() {
+          _rankings = cached!;
+          _notice = null;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// حفظ النسخة الناجحة الحالية على القرص لعرضها في المرة القادمة عند انقطاع REST.
+  Future<void> _persistLastGood() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastGoodPrefsKey, jsonEncode(_lastGood));
+    } catch (_) {}
+  }
+
+  String _currentCacheKey() {
+    final timeframe = _subTabIndex == 0
+        ? 'daily'
+        : _subTabIndex == 1
+            ? 'weekly'
+            : 'monthly';
+    return '${widget.roomId}_${_mainTabIndex == 0 ? 'w' : 'm'}_$timeframe';
+  }
 
   void _openUserProfile(Map<String, dynamic>? item) {
     if (item == null) return;
@@ -50,6 +107,8 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     //    حتى لا يظهر المستوى كنص «Lv.x» قبل تحميل الصور.
     LevelService().addListener(_onLevelsChanged);
     unawaited(LevelService().ensureLoaded());
+    // عرض أي نسخة محفوظة فوراً ثم تحديثها من الشبكة — لا ننتظر REST لعرض البيانات.
+    unawaited(_restoreLastGood());
     _fetchRankings();
     _subscribeGiftUpdates();
   }
@@ -97,26 +156,54 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     setState(() => _isLoading = true);
     final String timeframe = _subTabIndex == 0 ? 'daily' : _subTabIndex == 1 ? 'weekly' : 'monthly';
     final bool isWealth = _mainTabIndex == 0;
+    final cacheKey = '${widget.roomId}_${isWealth ? 'w' : 'm'}_$timeframe';
 
     try {
-      // ✅ مهلة كلية: صفحة الهدايا المُرقّمة قد تطول على الغرف النشطة —
-      //    بدون مهلة يبقى الشيت على «تحميل» بلا نهاية عند ضعف الشبكة.
+      // ✅ مهلة أطول خصيصاً لمسار الترتيب: طلبات sent_gifts/users على الشبكات
+      //    البطيئة قد تتجاوز 5 ثواني، والفشل السريع كان يُظهر «تعذر الاتصال»
+      //    رغم أن البيانات قابلة للجلب. النسخة المحفوظة تظهر خلال ذلك فوراً.
+      bool networkFailed = false;
       final data = await SupabaseService()
           .getRoomRankings(
             roomId: widget.roomId,
             isWealth: isWealth,
             timeframe: timeframe,
           )
-          .timeout(const Duration(seconds: 25), onTimeout: () => const []);
+          .timeout(const Duration(seconds: 20), onTimeout: () {
+        networkFailed = true;
+        return const [];
+      });
       if (!mounted || generation != _fetchGeneration) return;
+      if (networkFailed && data.isEmpty && _lastGood[cacheKey]?.isNotEmpty == true) {
+        setState(() {
+          _rankings = _lastGood[cacheKey]!;
+          _notice = 'عرض آخر ترتيب محفوظ — تعذّر الاتصال بالسيرفر';
+          _isLoading = false;
+        });
+        return;
+      }
+      if (data.isNotEmpty) {
+        _lastGood[cacheKey] = data;
+        unawaited(_persistLastGood());
+      }
       setState(() {
         _rankings = data;
+        _notice = networkFailed
+            ? (_lastGood[cacheKey]?.isNotEmpty == true
+                ? 'عرض آخر ترتيب محفوظ — تعذّر الاتصال بالسيرفر'
+                : 'تعذّر الاتصال بالسيرفر — تحقّق من الإنترنت')
+            : null;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[RoomRankBottomSheet] _fetchRankings error: $e\n$st');
       if (!mounted || generation != _fetchGeneration) return;
+      final hasSaved = _lastGood[cacheKey]?.isNotEmpty == true;
       setState(() {
-        _rankings = [];
+        _rankings = _lastGood[cacheKey] ?? [];
+        _notice = hasSaved
+            ? 'عرض آخر ترتيب محفوظ — تعذّر الاتصال بالسيرفر'
+            : 'تعذّر الاتصال بالسيرفر — تحقّق من الإنترنت';
         _isLoading = false;
       });
     }
@@ -208,6 +295,23 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
               _buildSubTabs(),
               const SizedBox(height: 10),
 
+              if (_notice != null && !_isLoading)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0x55FFD54F)),
+                    ),
+                    child: DText(
+                      _notice!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 11),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD54F)))
@@ -233,30 +337,77 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
           errorBuilder: (_, __, ___) => const Icon(Icons.emoji_events, color: Color(0xFFFFD54F), size: 70),
         ),
         const SizedBox(height: 12),
-        const DText(
-          'لا توجد بيانات ترتيب حالياً',
-          style: TextStyle(color: Colors.white54, fontSize: 14),
+        DText(
+          _notice ?? 'لا توجد هدايا مسجلة في هذه الغرفة خلال هذه الفترة',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
         ),
-        const SizedBox(height: 14),
-        GestureDetector(
-          onTap: _fetchRankings,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const DText(
-              'إعادة المحاولة',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+        const SizedBox(height: 6),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: DText(
+            'يمكنك تصفح الترتيب العام للمنصة لمشاهدة متصدري التطبيق',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white38, fontSize: 11),
           ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: _fetchRankings,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: const DText(
+                  'تحديث',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RankScreen()),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.leaderboard, size: 16, color: Colors.black),
+                    SizedBox(width: 6),
+                    DText(
+                      'الترتيب العام',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

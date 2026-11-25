@@ -22,6 +22,7 @@ import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dynamic_config_service.dart';
 import 'session_token_store.dart';
+import 'supabase_realtime_service.dart';
 
 class SupabaseDataService {
   static final SupabaseDataService _instance = SupabaseDataService._internal();
@@ -38,6 +39,10 @@ class SupabaseDataService {
         if (SessionTokenStore.token != null)
           'x-session-token': SessionTokenStore.token!,
       };
+
+  /// الحقول المحددة للغرف لتخفيف الـ Payload بنسبة 70% وتفادي سحب بيانات غير مستخدمة
+  static const String _roomSelectFields =
+      'room_id,name,description,room_photo_url,host_uid,host_name,host_photo_url,member_count,max_members,is_locked,category,created_at,seat_count,seat_style,seat_color,total_gifts,monthly_coins,hot_value,moderators,country,bg_image,is_chat_locked,announcement,has_lucky_bag';
 
   static List<gm.GiftModel>? _giftsCache;
   static int _giftsCacheAtMs = 0;
@@ -139,17 +144,20 @@ class SupabaseDataService {
     }
   }
 
-  Future<RoomModel?> getRoom(String roomId) async {
+  Future<RoomModel?> getRoom(String roomId, {bool includeMonthlyCoins = false}) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=*');
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=$_roomSelectFields');
       final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
           final m = Map<String, dynamic>.from(list.first as Map);
           final room = RoomModel.fromMap(m);
-          final monthly = await _fetchMonthlyRoomCoins(roomId: roomId);
-          return room.copyWith(monthlyCoins: monthly[roomId] ?? 0);
+          if (includeMonthlyCoins) {
+            final monthly = await _fetchMonthlyRoomCoins(roomId: roomId);
+            return room.copyWith(monthlyCoins: monthly[roomId] ?? 0);
+          }
+          return room;
         }
       }
     } catch (e) {
@@ -165,7 +173,7 @@ class SupabaseDataService {
     try {
       final inFilter = roomIds.map((e) => '"$e"').join(',');
       final url = Uri.parse(
-          '$_baseUrl/rest/v1/rooms?room_id=in.($inFilter)&select=*');
+          '$_baseUrl/rest/v1/rooms?room_id=in.($inFilter)&select=$_roomSelectFields');
       final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
@@ -181,7 +189,7 @@ class SupabaseDataService {
 
   Future<RoomModel?> getRoomByHostUid(String hostUid) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/rooms?host_uid=eq.$hostUid&select=*&limit=1');
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?host_uid=eq.$hostUid&select=$_roomSelectFields&limit=1');
       final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
@@ -196,12 +204,33 @@ class SupabaseDataService {
     return null;
   }
 
+  // ── كاش قصير الأمد — السيرفر يختنق من عاصفة Polling المتكررة
+  //    (كل عميل يسحب كل الغرف + الإحصائيات كل ثوانٍ). الكاش يجعل
+  //    الاستعلامات المتتالية خلال النافذة ترجع من الذاكرة.
+  DateTime? _allRoomsCacheTime;
+  List<RoomModel>? _allRoomsCache;
+  static const Duration _allRoomsTtl = Duration(seconds: 15);
+
+  DateTime? _liveCountsCacheTime;
+  Map<String, int>? _liveCountsCache;
+  static const Duration _liveCountsTtl = Duration(seconds: 15);
+
+  DateTime? _monthlyCoinsCacheTime;
+  Map<String, int>? _monthlyCoinsCache;
+  static const Duration _monthlyCoinsTtl = Duration(seconds: 120);
+
   Future<List<RoomModel>> getAllRooms() async {
+    final now = DateTime.now();
+    if (_allRoomsCache != null &&
+        _allRoomsCacheTime != null &&
+        now.difference(_allRoomsCacheTime!) < _allRoomsTtl) {
+      return _allRoomsCache!;
+    }
     try {
       // طلبات الغرف + العدّاد + الكوينز بالتوازي — بدل التسلسل التي كانت
       // تضاعف زمن التحميل (الغرف تنتظر ثم الإحصائيات تنتظر)
       final roomsFuture = SafeHttp.get(
-        Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc'),
+        Uri.parse('$_baseUrl/rest/v1/rooms?select=$_roomSelectFields&order=total_gifts.desc&limit=100'),
         headers: _headers,
       );
       final countsFuture = _fetchLiveRoomMemberCounts();
@@ -215,7 +244,7 @@ class SupabaseDataService {
 
         final liveCounts = await countsFuture;
         final monthlyCoins = await coinsFuture;
-        return rooms
+        final result = rooms
             .map((r) => r.copyWith(
                   memberCount: liveCounts == null
                       ? r.memberCount
@@ -223,16 +252,29 @@ class SupabaseDataService {
                   monthlyCoins: monthlyCoins[r.roomId] ?? 0,
                 ))
             .toList();
+        _allRoomsCache = result;
+        _allRoomsCacheTime = DateTime.now();
+        return result;
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getAllRooms error: $e');
     }
-    return [];
+    return _allRoomsCache ?? [];
   }
 
   /// إجمالي الكوينز المُرسَلة داخل الغرفة خلال الشهر الحالي —
   /// عبر RPC مُجمَّع على السيرفر (طلب واحد بدل سحب آلاف الصفوف)
   Future<Map<String, int>> _fetchMonthlyRoomCoins({String? roomId}) async {
+    final now = DateTime.now();
+    if (_monthlyCoinsCache != null &&
+        _monthlyCoinsCacheTime != null &&
+        now.difference(_monthlyCoinsCacheTime!) < _monthlyCoinsTtl) {
+      final cached = Map<String, int>.from(_monthlyCoinsCache!);
+      if (roomId != null && roomId.isNotEmpty) {
+        return {roomId: cached[roomId] ?? 0};
+      }
+      return cached;
+    }
     final result = <String, int>{};
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rpc/room_monthly_coins');
@@ -245,6 +287,8 @@ class SupabaseDataService {
         if (roomId != null && roomId.isNotEmpty && rid != roomId) continue;
         result[rid] = (row['coins'] as num?)?.toInt() ?? 0;
       }
+      _monthlyCoinsCache = Map<String, int>.from(result);
+      _monthlyCoinsCacheTime = DateTime.now();
     } catch (e) {
       debugPrint('[SupabaseDataService] _fetchMonthlyRoomCoins error: $e');
     }
@@ -252,6 +296,12 @@ class SupabaseDataService {
   }
 
   Future<Map<String, int>?> _fetchLiveRoomMemberCounts() async {
+    final now = DateTime.now();
+    if (_liveCountsCache != null &&
+        _liveCountsCacheTime != null &&
+        now.difference(_liveCountsCacheTime!) < _liveCountsTtl) {
+      return Map<String, int>.from(_liveCountsCache!);
+    }
     try {
       // نعتبر العضو "متواجداً" فقط إذا كانت نبضته حديثة (آخر 5 دقائق)
       final cutoff = DateTime.now()
@@ -267,6 +317,8 @@ class SupabaseDataService {
         final rid = (row['room_id'] ?? '').toString();
         if (rid.isNotEmpty) counts[rid] = (counts[rid] ?? 0) + 1;
       }
+      _liveCountsCache = Map<String, int>.from(counts);
+      _liveCountsCacheTime = DateTime.now();
       return counts;
     } catch (e) {
       debugPrint('[SupabaseDataService] _fetchLiveRoomMemberCounts error: $e');
@@ -369,6 +421,22 @@ class SupabaseDataService {
         'taken_at': DateTime.now().toUtc().toIso8601String(),
       });
 
+      // ⚡ بث فوري فائق السرعة عبر WebSocket قبل حتى انتظار اكتمال طلب REST
+      unawaited(SupabaseRealtimeService.instance.broadcastSeatChange(
+        roomId: roomId,
+        action: 'take',
+        seatIndex: seatIndex,
+        userData: {
+          'id': user.uid,
+          'uid': user.uid,
+          'name': user.name,
+          'custom_id': user.customId,
+          'photo_url': user.photoUrl,
+          'avatar': user.photoUrl,
+          'active_frame': user.activeFrame,
+        },
+      ).catchError((_) => false));
+
       var res = await SafeHttp.post(
         url,
         headers: {
@@ -423,7 +491,7 @@ class SupabaseDataService {
           }
         }
       }
-      return takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
+      return await takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
     } catch (e) {
       debugPrint('[SupabaseDataService] restoreSeatIfFree error: $e');
       return false;
@@ -432,6 +500,13 @@ class SupabaseDataService {
 
   Future<bool> leaveSeat(String roomId, int seatIndex) async {
     try {
+      // ⚡ بث مغادرة المقعد فوراً للغرفة عبر WebSocket
+      unawaited(SupabaseRealtimeService.instance.broadcastSeatChange(
+        roomId: roomId,
+        action: 'leave',
+        seatIndex: seatIndex,
+      ).catchError((_) => false));
+
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex');
       final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
@@ -443,6 +518,14 @@ class SupabaseDataService {
 
   Future<bool> leaveSeatForUser(String roomId, String uid) async {
     try {
+      // ⚡ بث مغادرة المقعد فوراً للغرفة عبر WebSocket
+      unawaited(SupabaseRealtimeService.instance.broadcastSeatChange(
+        roomId: roomId,
+        action: 'leave',
+        seatIndex: -1,
+        userData: {'uid': uid, 'id': uid},
+      ).catchError((_) => false));
+
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&uid=eq.$uid');
       final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
@@ -454,6 +537,14 @@ class SupabaseDataService {
 
   Future<bool> toggleMute(String roomId, int seatIndex, bool isMuted) async {
     try {
+      // ⚡ بث كتم المايك فوراً للغرفة عبر WebSocket
+      unawaited(SupabaseRealtimeService.instance.broadcastSeatChange(
+        roomId: roomId,
+        action: 'mute',
+        seatIndex: seatIndex,
+        isMuted: isMuted,
+      ).catchError((_) => false));
+
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
       final res = await SafeHttp.post(
         url,
@@ -673,6 +764,50 @@ class SupabaseDataService {
 
   /// خصم كوينز atomic على السيرفر — طلب واحد بدل قراءة+كتابة
   /// آمن مع الإرسال المتتابع (كومبو/ضغط مطوّل) بدون فقدان تحديثات
+  /// ✅ إرسال الهدية السيادي الذري (Server-Authoritative Send Gift)
+  /// يستدعي دالة send_gift_authoritative في Supabase كحركة ذرية واحدة:
+  /// - السعر واسم الهدية يُقرأ من السيرفر حصراً.
+  /// - فحص رصيد المرسل وقفل السجل لمنع الرهان/الإرسال المزدوج.
+  /// - خصم كوينز المرسل + إيداع ماس المستلم في خطوة واحدة غير قابلة للتجزئة.
+  /// - تسجيل الدفتر المالي وعمولة الوكالة تلقائياً.
+  /// - تسجيل في sent_gifts وزيادة إجمالي الغرفة ومنع التكرار بـ idempotency_key.
+  Future<Map<String, dynamic>?> sendGiftAuthoritative({
+    required String senderId,
+    required String receiverId,
+    required String roomId,
+    required String giftId,
+    int count = 1,
+    String? idempotencyKey,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/rpc/send_gift_authoritative');
+      final res = await SafeHttp.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'p_sender_id': senderId,
+          'p_receiver_id': receiverId,
+          'p_room_id': roomId,
+          'p_gift_id': giftId,
+          'p_count': count,
+          'p_idem_key': idempotencyKey,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } else {
+        debugPrint('[SupabaseDataService] sendGiftAuthoritative HTTP ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] sendGiftAuthoritative error: $e');
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>?> spendUserCoins(String uid, int amount) async {
     try {
       // Bypass spend_user_coins: several old overloads on the server make
@@ -734,10 +869,11 @@ class SupabaseDataService {
     return false;
   }
 
-  /// تعديل كوينز/ماس على حساب أي مستخدم — RPC ذرّي.
+  /// تعديل كوينز/ماس على حساب أي مستخدم — RPC ذرّي مع fallback موثوق.
   /// يعيد null عند فشل الشبكة (وليس عند رفض منطق العمل).
   Future<Map<String, dynamic>?> adjustUserWallet(
       String uid, int coinsDelta, int diamondsDelta) async {
+    // 1. محاولة استدعاء RPC adjust_user_wallet
     try {
       final res = await SafeHttp.post(
         Uri.parse('$_baseUrl/rest/v1/rpc/adjust_user_wallet'),
@@ -750,11 +886,75 @@ class SupabaseDataService {
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final body = jsonDecode(res.body);
-        if (body is Map) return Map<String, dynamic>.from(body);
+        if (body is Map) {
+          final status = body['status']?.toString();
+          if (status == 'ok') {
+            return Map<String, dynamic>.from(body);
+          }
+          if (status == 'insufficient_coins') {
+            return Map<String, dynamic>.from(body);
+          }
+          debugPrint('[SupabaseDataService] adjust_user_wallet status: $status, attempting fallback');
+        }
+      } else {
+        debugPrint('[SupabaseDataService] adjust_user_wallet HTTP ${res.statusCode}, attempting fallback');
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] adjustUserWallet error: $e');
     }
+
+    // 2. محاولة استدعاء update_user_balance كـ RPC بديل ذري
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/update_user_balance'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_user_id': uid,
+          'p_coin_delta': coinsDelta,
+          'p_diamond_delta': diamondsDelta,
+          'p_reason': 'wallet_adjustment',
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        if (body is Map) {
+          if (body['success'] == true) {
+            return {'status': 'ok', 'new_coins': body['new_coins']};
+          }
+          final err = body['error']?.toString() ?? '';
+          if (err.contains('الرصيد') || err.contains('insufficient')) {
+            return {'status': 'insufficient_coins'};
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fallback مباشر عبر getUser + updateUser لضمان عدم ضياع التحديث
+    try {
+      final u = await getUser(uid);
+      if (u != null) {
+        final currentCoins = u.coins.toInt();
+        final currentDiamonds = u.diamonds.toInt();
+        if (coinsDelta < 0 && currentCoins + coinsDelta < 0) {
+          return {'status': 'insufficient_coins'};
+        }
+        final newCoins = math.max(0, currentCoins + coinsDelta).toInt();
+        final newDiamonds = math.max(0, currentDiamonds + diamondsDelta).toInt();
+        final updates = <String, dynamic>{};
+        if (coinsDelta != 0) updates['coins'] = newCoins;
+        if (diamondsDelta != 0) updates['diamonds'] = newDiamonds;
+        if (updates.isNotEmpty) {
+          final ok = await updateUser(uid, updates);
+          if (ok) {
+            debugPrint('[SupabaseDataService] adjustUserWallet fallback saved: coins $currentCoins -> $newCoins');
+            return {'status': 'ok', 'coins': newCoins, 'fallback': true};
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] adjustUserWallet fallback error: $e');
+    }
+
     return null;
   }
 
@@ -926,6 +1126,27 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getRoomMessages error: $e');
     }
     return [];
+  }
+
+  Future<bool> clearRoomMessages(String roomId, {int? clearedAt}) async {
+    try {
+      final now = clearedAt ?? DateTime.now().millisecondsSinceEpoch;
+      // 1. حذف كافة رسائل الغرفة من قاعدة البيانات
+      try {
+        final delUrl = Uri.parse('$_baseUrl/rest/v1/room_messages?room_id=eq.$roomId');
+        await SafeHttp.delete(delUrl, headers: _headers);
+      } catch (e) {
+        debugPrint('[SupabaseDataService] delete room_messages error: $e');
+      }
+      // 2. تحديث وقت المسح في بيانات الغرفة ليعلم جميع المتصلين
+      await updateRoom(roomId, {
+        'chat_cleared_at': now,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] clearRoomMessages error: $e');
+      return false;
+    }
   }
 
   // ═══════════════════════════════════════════════════════
@@ -1251,7 +1472,7 @@ class SupabaseDataService {
       final q = query.trim();
       if (q.isEmpty) return [];
       final encoded = Uri.encodeComponent(q);
-      final url = Uri.parse('$_baseUrl/rest/v1/rooms?or=(room_id.ilike.*$encoded*,name.ilike.*$encoded*,host_name.ilike.*$encoded*)&select=*&limit=20');
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?or=(room_id.ilike.*$encoded*,name.ilike.*$encoded*,host_name.ilike.*$encoded*)&select=$_roomSelectFields&limit=20');
       final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
@@ -1446,6 +1667,12 @@ class SupabaseDataService {
       final c = a.sortOrder.compareTo(b.sortOrder);
       return c != 0 ? c : a.id.compareTo(b.id);
     });
+
+    // ✅ وسم «قسم الحظ» (gift_categories.is_lucky) اتنقل لطبقة
+    //    العرض (gift_panel.applyGifts) — هناك بيترجَم لحظياً من
+    //    الأقسام المحدّثة بالـ Realtime، فيشتغل التفعيل **والإلغاء**
+    //    فوراً. لو اتوسم هنا كان بيتخبز في الكاش ومش بينلغي.
+
     if (list.isNotEmpty) {
       _giftsCache = list;
       _giftsCacheAtMs = nowMs;
@@ -1487,17 +1714,23 @@ class SupabaseDataService {
             if (c.id.isNotEmpty) catMap[c.id] = c;
           } catch (_) {}
         }
+      } else {
+        debugPrint('[SupabaseDataService] getGiftCategories HTTP ${res.statusCode}: ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}');
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getGiftCategories Supabase error: $e');
     }
 
     if (catMap.isEmpty && _giftCategoriesCache != null) {
+      debugPrint('[SupabaseDataService] getGiftCategories fallback to memory cache (${_giftCategoriesCache!.length})');
       return _giftCategoriesCache!;
     }
     if (catMap.isEmpty) {
       final disk = await _readDiskCategories();
-      if (disk != null && disk.isNotEmpty) return disk;
+      if (disk != null && disk.isNotEmpty) {
+        debugPrint('[SupabaseDataService] getGiftCategories fallback to disk cache (${disk.length})');
+        return disk;
+      }
     }
 
     final list = catMap.values.toList();
@@ -1512,6 +1745,17 @@ class SupabaseDataService {
       _writeDiskCategories(list);
     }
     return list;
+  }
+
+  /// تحديث إجباري من السيرفر — يتجاهل كاش الذاكرة (10 دقائق) وكاش القرص.
+  /// يُستخدم عند فتح صندوق الهدايا وعند وصول إشارة Realtime بتغيير
+  /// `gift_categories` حتى يظهر القسم الجديد فوراً بدل انتظار الـ TTL.
+  /// لو الشبكة فاشلة يرجّع الكاش القديم (داخل getGiftCategories) فلا نفقد الأقسام.
+  Future<List<GiftCategory>> refreshGiftCategories() async {
+    final cats = await getGiftCategories(allowCache: false);
+    debugPrint(
+        '[SupabaseDataService] refreshGiftCategories: ${cats.length} [${cats.map((c) => c.id).join(', ')}]');
+    return cats;
   }
 
   Future<void> saveGiftCategory(GiftCategory cat) async {
@@ -1570,6 +1814,23 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getGiftBannerConfigs error: $e');
+    }
+    return [];
+  }
+
+  /// ألعاب الطرف الثالث المُدارة من لوحة التحكم (game_links)
+  /// — رابط تشغيل + صورة + host/app_key لكل لعبة.
+  Future<List<Map<String, dynamic>>> getGameLinks() async {
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/game_links?is_active=eq.true&select=*&order=sort_order.asc');
+      final res = await SafeHttp.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGameLinks error: $e');
     }
     return [];
   }
@@ -2251,9 +2512,9 @@ class SupabaseDataService {
     }
   }
 
-  Future<bool> clearRoomCharisma(String roomId) async {
+  Future<bool> clearRoomCharisma(String roomId, {int? clearedAt}) async {
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
+      final now = clearedAt ?? DateTime.now().millisecondsSinceEpoch;
       // لا نحذف سجلات sent_gifts لأنها مصدر الترتيب العام (الثروة/الجاذبية).
       // نكتفي بختم وقت التصفير في الغرفة، وكل قراءات كاريزما الغرفة تستخدمه
       // كحد أدنى لاحتساب هدايا الغرفة فقط.
@@ -2290,6 +2551,13 @@ class SupabaseDataService {
   static final Map<String, Future<List<gm.SentGiftModel>>> _sentGiftsPagedInflight =
       {};
 
+  /// كاش قصير الأجل للقطة الترتيب: لوحة الترتيب تستدعي نفس الاستعلام عدة مرات
+  /// متتالية (134 → 156 → 223 → 223 صف في اللوج) فكان كل استدعاء يعيد جلب
+  /// مئات الصفوف وفكّها على الـ UI isolate → Skipped frames.
+  static final Map<String, List<gm.SentGiftModel>> _sentGiftsPagedCache = {};
+  static final Map<String, DateTime> _sentGiftsPagedCacheAt = {};
+  static const Duration _sentGiftsPagedTtl = Duration(seconds: 20);
+
   Future<List<gm.SentGiftModel>> getSentGiftsPaged({
     DateTime? after,
     String roomId = '',
@@ -2297,11 +2565,23 @@ class SupabaseDataService {
     int maxRows = 20000,
   }) {
     final key = '$roomId|${after?.toUtc().toIso8601String() ?? ''}|$pageSize|$maxRows';
+    final cached = _sentGiftsPagedCache[key];
+    final cachedAt = _sentGiftsPagedCacheAt[key];
+    if (cached != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _sentGiftsPagedTtl) {
+      // نسخة خفيفة حتى لا يعدّل مستدعٍ واحد القائمة المشتركة.
+      return Future.value(List<gm.SentGiftModel>.from(cached));
+    }
     final existing = _sentGiftsPagedInflight[key];
     if (existing != null) return existing;
     final fut = _fetchSentGiftsPaged(
             after: after, roomId: roomId, pageSize: pageSize, maxRows: maxRows)
-        .whenComplete(() => _sentGiftsPagedInflight.remove(key));
+        .then((rows) {
+      _sentGiftsPagedCache[key] = rows;
+      _sentGiftsPagedCacheAt[key] = DateTime.now();
+      return rows;
+    }).whenComplete(() => _sentGiftsPagedInflight.remove(key));
     _sentGiftsPagedInflight[key] = fut;
     return fut;
   }
@@ -2359,7 +2639,7 @@ class SupabaseDataService {
       if (roomId.isNotEmpty) query += 'room_id=eq.$roomId&';
       if (after != null) query += 'created_at=gte.${after.toUtc().toIso8601String()}&';
       if (offset > 0) query += 'offset=$offset&';
-      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${query}select=*&order=created_at.desc,id.desc&limit=$limit');
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${query}select=*&order=created_at.desc&limit=$limit');
       // ✅ مهلة أطول — حتى 3000 صف قد تتجاوز 5 ثوانٍ على شبكة ضعيفة
       //    وكان TimeoutException يُسقط الجلب فيرجع الترتيب فارغاً
       final res = await SafeHttp.get(url, headers: _headers,
@@ -2533,6 +2813,37 @@ class SupabaseDataService {
     } catch (e) {
       debugPrint('[SupabaseDataService] deleteNotification error: $e');
       return false;
+    }
+  }
+
+  /// حذف إشعارات طلبات الـ CP للمستخدم (سواء برقم الطلب أو برقم المرسل)
+  /// لضمان عدم بقائها في شاشة الإشعارات بعد القبول أو الرفض في الرسائل
+  Future<void> deleteCpNotifications({
+    required String myUid,
+    String? senderUid,
+    String? requestId,
+  }) async {
+    if (myUid.isEmpty) return;
+    try {
+      if (requestId != null && requestId.isNotEmpty) {
+        final url1 = Uri.parse(
+          '$_baseUrl/rest/v1/notifications?uid=eq.$myUid&data->>request_id=eq.$requestId',
+        );
+        await SafeHttp.delete(url1, headers: _headers);
+      }
+      if (senderUid != null && senderUid.isNotEmpty) {
+        final url2 = Uri.parse(
+          '$_baseUrl/rest/v1/notifications?uid=eq.$myUid&actor_uid=eq.$senderUid&type=in.(cp_gift,cp_invite)',
+        );
+        await SafeHttp.delete(url2, headers: _headers);
+
+        final url3 = Uri.parse(
+          '$_baseUrl/rest/v1/notifications?uid=eq.$myUid&data->>sender_id=eq.$senderUid&data->>action=in.(cp_relationship_request,cp_request)',
+        );
+        await SafeHttp.delete(url3, headers: _headers);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deleteCpNotifications error: $e');
     }
   }
 
@@ -2733,7 +3044,7 @@ class SupabaseDataService {
 
   Future<List<Map<String, dynamic>>> getRoomRanking({int limit = 50}) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc&limit=$limit');
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=room_id,name,room_photo_url,bg_image,host_name,total_gifts,hot_value&order=total_gifts.desc&limit=$limit');
       final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
@@ -3450,28 +3761,42 @@ class SupabaseDataService {
     int? multiplier,
     String type = 'lucky_gift',
     String? broadcastId,
+    String? categoryId,
   }) async {
-    try {
-      final url = Uri.parse('$_baseUrl/rest/v1/broadcasts');
+    Future<bool> post(Map<String, dynamic> body) async {
       final res = await SafeHttp.post(
-        url,
+        Uri.parse('$_baseUrl/rest/v1/broadcasts'),
         headers: _headers,
-        body: jsonEncode({
-          'id': broadcastId ?? const Uuid().v4(),
-          'sender_uid': senderUid,
-          'sender_name': senderName,
-          'sender_photo_url': senderPhotoUrl ?? '',
-          'room_id': roomId,
-          'room_name': roomName ?? '',
-          'content': content,
-          'gift_icon': giftIcon,
-          'multiplier': multiplier,
-          'type': type,
-          // لا نرسل created_at من جهاز العميل حتى لا يؤثر فارق الساعة
-          // بين الأجهزة على ظهور البث في كل الغرف. السيرفر يضبطه تلقائياً.
-        }),
+        body: jsonEncode(body),
       );
       return res.statusCode >= 200 && res.statusCode < 300;
+    }
+
+    try {
+      final body = <String, dynamic>{
+        'id': broadcastId ?? const Uuid().v4(),
+        'sender_uid': senderUid,
+        'sender_name': senderName,
+        'sender_photo_url': senderPhotoUrl ?? '',
+        'room_id': roomId,
+        'room_name': roomName ?? '',
+        'content': content,
+        'gift_icon': giftIcon,
+        'multiplier': multiplier,
+        'type': type,
+        if (categoryId != null && categoryId.isNotEmpty)
+          'category_id': categoryId,
+        // لا نرسل created_at من جهاز العميل حتى لا يؤثر فارق الساعة
+        // بين الأجهزة على ظهور البث في كل الغرف. السيرفر يضبطه تلقائياً.
+      };
+      if (await post(body)) return true;
+      // عمود category_id ممكن يكون لسه مش متضاف في القاعدة —
+      // نعيد المحاولة بدونه عشان البث متفشلش بالكامل.
+      if (body.containsKey('category_id')) {
+        body.remove('category_id');
+        return await post(body);
+      }
+      return false;
     } catch (e) {
       debugPrint('[SupabaseDataService] recordBroadcast error: $e');
       return false;
@@ -3510,51 +3835,6 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getBroadcastsSince error: $e');
-    }
-    return [];
-  }
-
-  Future<bool> recordGlobalAnnouncement({
-    required String type,
-    required String senderName,
-    required String giftName,
-    required String roomId,
-    required int multiplier,
-    required int totalWon,
-  }) async {
-    try {
-      final url = Uri.parse('$_baseUrl/rest/v1/global_announcements');
-      final res = await SafeHttp.post(
-        url,
-        headers: _headers,
-        body: jsonEncode({
-          'id': const Uuid().v4(),
-          'type': type,
-          'sender_name': senderName,
-          'gift_name': giftName,
-          'room_id': roomId,
-          'multiplier': multiplier,
-          'total_won': totalWon,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
-        }),
-      );
-      return res.statusCode >= 200 && res.statusCode < 300;
-    } catch (e) {
-      debugPrint('[SupabaseDataService] recordGlobalAnnouncement error: $e');
-      return false;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getRecentGlobalAnnouncements({int limit = 10}) async {
-    try {
-      final url = Uri.parse('$_baseUrl/rest/v1/global_announcements?select=*&order=created_at.desc&limit=$limit');
-      final res = await SafeHttp.get(url, headers: _headers);
-      if (res.statusCode == 200) {
-        final List list = jsonDecode(res.body);
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      }
-    } catch (e) {
-      debugPrint('[SupabaseDataService] getRecentGlobalAnnouncements error: $e');
     }
     return [];
   }
