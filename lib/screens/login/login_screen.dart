@@ -27,7 +27,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   Map<String, dynamic>? _lastAccount;
   String? _bgUrl;
@@ -38,17 +38,48 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showWelcome = true;
   VideoPlayerController? _videoController;
 
+  // سياسة الخصوصية
+  bool _isPrivacyAgreed = false;
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  bool _showPrivacyError = false;
+
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -10.0), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 10.0, end: -10.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 10.0, end: 0.0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut));
+
     _loadSavedAccount();
     _loadLoginConfig();
   }
 
   @override
   void dispose() {
+    _shakeController.dispose();
     _videoController?.dispose();
     super.dispose();
+  }
+
+  void _triggerPrivacyWarning() {
+    setState(() => _showPrivacyError = true);
+    _shakeController.forward(from: 0.0);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: DText('يرجى الموافقة على سياسة الخصوصية وشروط الاستخدام أولاً'),
+        backgroundColor: Colors.redAccent,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _loadSavedAccount() async {
@@ -109,7 +140,9 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       // 1. Check ban status if existing user
       if (!user.isNewUser) {
-        final userData = await SupabaseService().getUser(user.uid);
+        final userData = await SupabaseService()
+            .getUser(user.uid)
+            .timeout(const Duration(seconds: 20));
         if (userData != null && userData.banned) {
           // Check if ban duration has expired
           if (userData.bannedUntil != null && DateTime.now().isAfter(userData.bannedUntil!)) {
@@ -149,32 +182,37 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       // 3. Update device info on user profile and persistent registries
-      try {
-        final deviceInfo = await DeviceService().getDeviceInfo();
-        await SupabaseService().updateUser(user.uid, deviceInfo.toMap());
-        await DeviceService().saveDeviceRegistration(user.uid, email: user.email, info: deviceInfo);
-      } catch (_) {}
+      //    (best-effort في الخلفية — لا نؤخر الانتقال للشاشة الرئيسية)
+      unawaited(() async {
+        try {
+          final deviceInfo = await DeviceService().getDeviceInfo();
+          await SupabaseService().updateUser(user.uid, deviceInfo.toMap());
+          await DeviceService().saveDeviceRegistration(user.uid, email: user.email, info: deviceInfo);
+        } catch (_) {}
+      }());
 
-      // 4. Save account for quick 1-tap re-login
-      try {
-        final userData = await SupabaseService().getUser(user.uid);
-        await AccountSwitchService.saveAccount(
-          uid: user.uid,
-          name: userData?.name ?? user.displayName,
-          photoUrl: userData?.photoUrl ?? user.photoUrl,
-          customId: userData?.customId,
-          email: user.email,
-          phone: user.phoneNumber,
-        );
-      } catch (_) {
-        await AccountSwitchService.saveAccount(
-          uid: user.uid,
-          name: user.displayName,
-          photoUrl: user.photoUrl,
-          email: user.email,
-          phone: user.phoneNumber,
-        );
-      }
+      // 4. Save account for quick 1-tap re-login (best-effort)
+      unawaited(() async {
+        try {
+          final userData = await SupabaseService().getUser(user.uid);
+          await AccountSwitchService.saveAccount(
+            uid: user.uid,
+            name: userData?.name ?? user.displayName,
+            photoUrl: userData?.photoUrl ?? user.photoUrl,
+            customId: userData?.customId,
+            email: user.email,
+            phone: user.phoneNumber,
+          );
+        } catch (_) {
+          await AccountSwitchService.saveAccount(
+            uid: user.uid,
+            name: user.displayName,
+            photoUrl: user.photoUrl,
+            email: user.email,
+            phone: user.phoneNumber,
+          );
+        }
+      }());
 
       if (user.isNewUser) {
         // NEW USER: Go to SetupProfileScreen so the user can enter their name, picture, gender and get a custom ID
@@ -206,7 +244,9 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           final up = Provider.of<UserProvider>(context, listen: false);
           up.clearUser();
-          await up.loadUser(user.uid);
+          try {
+            await up.loadUser(user.uid).timeout(const Duration(seconds: 25));
+          } catch (_) {}
           if (mounted) {
             Navigator.pushAndRemoveUntil(
               context,
@@ -246,6 +286,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signInWithGoogle() async {
+    if (!_isPrivacyAgreed) {
+      _triggerPrivacyWarning();
+      return;
+    }
     if (_isLoading) {
       developer.log('_signInWithGoogle: already loading, skipping');
       return;
@@ -262,62 +306,101 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // 1. Check if user already exists in Supabase by email
+      //    (getUserByEmail يرمي استثناءً عند فشل الشبكة — لا نكمل كأن
+      //    المستخدم جديد لأن ذلك قد يحجبه بالخطأ "حسابين" أو يكرّر حسابه)
       UserModel? existingUser;
       if (account.email.isNotEmpty) {
-        existingUser = await SupabaseAuthService().getUserByEmail(account.email);
+        try {
+          existingUser = await SupabaseAuthService().getUserByEmail(account.email);
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: DText('تعذر التحقق من الحساب. تحقق من اتصالك بالإنترنت'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
+        }
       }
 
       String uid;
       bool isNewUser = false;
+      String? authUid;
       if (existingUser != null) {
         // Existing user found in Supabase! Use their established UID and data
         uid = existingUser.uid;
         isNewUser = false;
         developer.log('[GoogleAuth] Existing user: ${existingUser.name}, uid: $uid, customId: ${existingUser.customId}');
       } else {
-        // Enforce maximum 2 accounts per phone before registering new user
-        final deviceInfo = await DeviceService().getDeviceInfo();
-        final canRegister = await DeviceService().canRegisterAccount(
-          deviceId: deviceInfo.deviceId,
-          currentEmail: account.email,
-        );
-
-        if (!canRegister) {
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: const Color(0xFF1E1D2A),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
-                    SizedBox(width: 8),
-                    DText('تنبيه الحد الأقصى', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                content: const DText(
-                  'عفواً، لا يمكن تسجيل أكثر من حسابين من نفس الهاتف.\nيرجى تسجيل الدخول بأحد الحسابات المسجلة مسبقاً على هذا الجهاز.',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
-                ),
-                actions: [
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const DText('حسناً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            );
-          }
-          return;
+        // سجّل الدخول في Supabase Auth أولاً للحصول على uid المصادقة الحقيقي
+        final authData = await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
+        authUid = (authData?['user']?['id'] as String?)?.toString().trim();
+        if (authUid == null || authUid.isEmpty) {
+          // في حال واجه خادم Supabase GoTrue خطأ (مثل حذف الحساب مسبقاً وتعلق الهوية في auth.identities)
+          // نعتمد على المعرف الثابت الموثوق من جوجل حتى يتمكن المستخدم من الدخول/إعادة التسجيل بسلاسة
+          authUid = 'google_${account.id}';
+          developer.log('[GoogleAuth] GoTrue token exchange unavailable, fallback to persistent Google UID: $authUid');
         }
 
-        // Brand new user! Authenticate with Supabase Auth
-        final authData = await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
-        uid = (authData?['user']?['id'] as String?) ?? 'google_${account.id}';
-        isNewUser = true;
-        developer.log('[GoogleAuth] New user with uid: $uid');
+        // قد يكون للمستخدم سجل في جدول users بنفس uid المصادقة
+        // حتى لو لم يكن بريده الإلكتروني محفوظاً — ابحث عنه قبل اعتباره جديداً
+        UserModel? uidUser;
+        try {
+          uidUser = await SupabaseAuthService().getUserFromSupabase(authUid);
+        } catch (_) {}
+
+        if (uidUser != null) {
+          existingUser = uidUser;
+          uid = uidUser.uid;
+          isNewUser = false;
+          developer.log('[GoogleAuth] Existing user by auth uid: ${uidUser.name}, uid: $uid');
+        } else {
+          // مستخدم جديد فعلاً — تحقق من حد الحسابين مع تمرير uid المصادقة
+          // حتى لا يُحجب حساب مسجل سابقاً على نفس الجهاز
+          final deviceInfo = await DeviceService().getDeviceInfo();
+          final canRegister = await DeviceService().canRegisterAccount(
+            deviceId: deviceInfo.deviceId,
+            currentEmail: account.email,
+            currentUid: authUid,
+          );
+
+          if (!canRegister) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF1E1D2A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+                      SizedBox(width: 8),
+                      DText('تنبيه الحد الأقصى', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: const DText(
+                    'عفواً، لا يمكن تسجيل أكثر من حسابين من نفس الهاتف.\nيرجى تسجيل الدخول بأحد الحسابات المسجلة مسبقاً على هذا الجهاز.',
+                    style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                  ),
+                  actions: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const DText('حسناً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return;
+          }
+
+          uid = authUid;
+          isNewUser = true;
+          developer.log('[GoogleAuth] New user with uid: $uid');
+        }
       }
 
       final authUser = AppAuthUser(
@@ -331,7 +414,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ إصدار session token لحساب Google — يثبت الهوية على السيرفر
       //    (create_session يتحقق من Supabase JWT) ليتزامن مع حارس
       //    الكتابة على users. أفضل جهد — لا يعطّل الدخول عند الفشل.
-      unawaited(SupabaseAuthService().issueGoogleSession(idToken: idToken));
+      unawaited(SupabaseAuthService().issueGoogleSession(idToken: idToken, uid: authUid ?? uid));
 
       await _handleSignIn(authUser);
     } on GoogleSignInException catch (e) {
@@ -402,18 +485,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildWelcomeHeader() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 45),
-      child: (_welcomeLogoUrl != null && _welcomeLogoUrl!.isNotEmpty)
-          ? CachedNetworkImage(
-              imageUrl: _welcomeLogoUrl!,
-              height: 75,
-              fit: BoxFit.contain,
-              placeholder: (_, __) => const SizedBox(height: 75),
-              errorWidget: (_, __, ___) => _buildDefaultWelcomeTypography(),
-            )
-          : _buildDefaultWelcomeTypography(),
-    );
+    return (_welcomeLogoUrl != null && _welcomeLogoUrl!.isNotEmpty)
+        ? CachedNetworkImage(
+            imageUrl: _welcomeLogoUrl!,
+            height: 65,
+            fit: BoxFit.contain,
+            placeholder: (_, __) => const SizedBox(height: 65),
+            errorWidget: (_, __, ___) => _buildDefaultWelcomeTypography(),
+          )
+        : _buildDefaultWelcomeTypography();
   }
 
   Widget _buildDefaultWelcomeTypography() {
@@ -423,10 +503,10 @@ class _LoginScreenState extends State<LoginScreen> {
         DText(
           _welcomeTitle.isNotEmpty ? _welcomeTitle : 'Welcome',
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 18,
             fontWeight: FontWeight.w400,
             color: Colors.white.withValues(alpha: 0.92),
-            letterSpacing: 3,
+            letterSpacing: 2,
             shadows: [
               Shadow(
                 color: Colors.black.withValues(alpha: 0.85),
@@ -440,10 +520,10 @@ class _LoginScreenState extends State<LoginScreen> {
         DText(
           _welcomeSubtitle.isNotEmpty ? _welcomeSubtitle : 'AHLA LIVE',
           style: TextStyle(
-            fontSize: 34,
+            fontSize: 28,
             fontWeight: FontWeight.w900,
             color: Colors.white,
-            letterSpacing: 4,
+            letterSpacing: 3,
             shadows: [
               Shadow(
                 color: Colors.black.withValues(alpha: 0.95),
@@ -462,6 +542,264 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildCenteredAppLogo() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 115,
+          height: 115,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Image.asset(
+              'assets/images/app_logo.png',
+              width: 115,
+              height: 115,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Image.asset(
+                'assets/icon/app_icon.png',
+                width: 115,
+                height: 115,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+        if (_showWelcome) ...[
+          const SizedBox(height: 16),
+          _buildWelcomeHeader(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildQuickLogin() {
+    final photoUrl = _lastAccount?['photoUrl']?.toString();
+    return GestureDetector(
+      onTap: _isLoading
+          ? null
+          : () {
+              if (!_isPrivacyAgreed) {
+                _triggerPrivacyWarning();
+                return;
+              }
+              AccountSwitchService.switchToAccount(context, _lastAccount!);
+            },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // فقط صورة المستخدم بدون أي خلفية بيضاء أو سوداء أو معتمة أو ذهبية
+          ClipOval(
+            child: SizedBox(
+              width: 68,
+              height: 68,
+              child: (photoUrl != null && photoUrl.isNotEmpty)
+                  ? CachedNetworkImage(
+                      imageUrl: photoUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      errorWidget: (_, __, ___) => Image.asset(R.avaBoy, fit: BoxFit.cover),
+                    )
+                  : Image.asset(R.avaBoy, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // كلمة دخول باللون الأسود وتحتها خلفية بيضاء خاصة بها فقط
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const DText(
+              'دخول',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return GestureDetector(
+      onTap: _isLoading ? null : _signInWithGoogle,
+      child: Container(
+        height: 52,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isLoading)
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.black87,
+                ),
+              )
+            else ...[
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Image.asset(
+                  'assets/images/google_custom_ic.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Google',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyRow() {
+    return AnimatedBuilder(
+      animation: _shakeAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_shakeAnimation.value, 0),
+          child: child,
+        );
+      },
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // زر الصح للموافقة مع اهتزاز وتلوين أحمر عند عدم التحديد
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isPrivacyAgreed = !_isPrivacyAgreed;
+                if (_isPrivacyAgreed) {
+                  _showPrivacyError = false;
+                }
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 22,
+              height: 22,
+              margin: const EdgeInsets.only(left: 8),
+              decoration: BoxDecoration(
+                color: _isPrivacyAgreed
+                    ? const Color(0xFF22C55E)
+                    : (_showPrivacyError ? Colors.red.withValues(alpha: 0.2) : Colors.transparent),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _showPrivacyError
+                      ? Colors.redAccent
+                      : (_isPrivacyAgreed ? const Color(0xFF22C55E) : Colors.white70),
+                  width: _showPrivacyError ? 2.5 : 1.5,
+                ),
+                boxShadow: _showPrivacyError
+                    ? [
+                        BoxShadow(
+                          color: Colors.red.withValues(alpha: 0.6),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: _isPrivacyAgreed
+                  ? const Icon(Icons.check, size: 15, color: Colors.white)
+                  : (_showPrivacyError
+                      ? const Icon(Icons.priority_high_rounded, size: 14, color: Colors.redAccent)
+                      : null),
+            ),
+          ),
+          // رابط ونصوص سياسة الخصوصية وشروط الاستخدام
+          Flexible(
+            child: GestureDetector(
+              onTap: () => _showPrivacyPolicy(context),
+              child: RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _showPrivacyError ? Colors.redAccent : const Color(0x99FFFFFF),
+                    height: 1.5,
+                  ),
+                  children: [
+                    const TextSpan(text: 'بالاستمرار، أنت توافق على '),
+                    TextSpan(
+                      text: 'سياسة الخصوصية',
+                      style: TextStyle(
+                        color: _showPrivacyError ? Colors.redAccent : const Color(0xFFFFD700),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    const TextSpan(text: ' و '),
+                    TextSpan(
+                      text: 'شروط الخدمة',
+                      style: TextStyle(
+                        color: _showPrivacyError ? Colors.redAccent : const Color(0xFFFFD700),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -475,235 +813,22 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Welcome Header (Ahla Live Branding)
-                  if (_showWelcome)
-                    _buildWelcomeHeader(),
-                  // Quick Login Card for Saved Account
+                  const Spacer(),
+                  // App Logo Centered in Screen
+                  _buildCenteredAppLogo(),
+                  const Spacer(),
+                  // Quick Login (Saved Account)
                   if (_lastAccount != null) ...[
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 20),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFFFFCC80).withValues(alpha: 0.7),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(22),
-                            child: SizedBox(
-                              width: 44,
-                              height: 44,
-                              child: (_lastAccount!['photoUrl'] != null &&
-                                      _lastAccount!['photoUrl'].toString().isNotEmpty)
-                                  ? CachedNetworkImage(
-                                      imageUrl: _lastAccount!['photoUrl'],
-                                      fit: BoxFit.cover,
-                                      placeholder: (_, __) => const CircularProgressIndicator(strokeWidth: 2),
-                                      errorWidget: (_, __, ___) => Image.asset(R.avaBoy, fit: BoxFit.cover),
-                                    )
-                                  : Image.asset(R.avaBoy, fit: BoxFit.cover),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                DText(
-                                  (_lastAccount!['name']?.toString().isNotEmpty == true)
-                                      ? _lastAccount!['name']
-                                      : 'مستخدم',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                DText(
-                                  'ID: ${_lastAccount!['customId'] ?? _lastAccount!['uid'] ?? ''}',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFCC80),
-                              foregroundColor: const Color(0xFF894916),
-                              elevation: 2,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: const Icon(Icons.bolt_rounded, size: 16),
-                            label: const DText(
-                              'دخول مباشر',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                            onPressed: _isLoading
-                                ? null
-                                : () => AccountSwitchService.switchToAccount(context, _lastAccount!),
-                          ),
-                        ],
-                      ),
-                    ),
+                    _buildQuickLogin(),
+                    const SizedBox(height: 24),
                   ],
-                  // Google Login Button
-                  GestureDetector(
-                    onTap: _isLoading ? null : _signInWithGoogle,
-                    child: Container(
-                      height: 50,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFCC80),
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_isLoading)
-                            const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF894916),
-                              ),
-                            )
-                          else
-                            R.image(
-                              'assets/mipmap-xxhdpi/login_google_ic.webp',
-                              width: 24,
-                              height: 24,
-                            ),
-                          const SizedBox(width: 10),
-                          const DText(
-                            'تسجيل الدخول بحساب Google',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF894916),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Phone Login Button
-                  GestureDetector(
-                    onTap: _isLoading
-                        ? null
-                        : () {
-                            PhoneLoginSheet.show(
-                              context,
-                              onSignedIn: (user) => _handleSignIn(user),
-                            );
-                          },
-                    child: Container(
-                      height: 50,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFFF5722),
-                            Color(0xFFFF9800),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          R.image(
-                            'assets/mipmap-xxhdpi/login_phone_ic.webp',
-                            width: 24,
-                            height: 24,
-                          ),
-                          const SizedBox(width: 10),
-                          const DText(
-                            'تسجيل الدخول برقم الهاتف',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  // Privacy text & Terms
-                  InkWell(
-                    onTap: () => _showPrivacyPolicy(context),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0x99FFFFFF),
-                            height: 1.5,
-                          ),
-                          children: [
-                            TextSpan(text: 'بالاستمرار، أنت توافق على '),
-                            TextSpan(
-                              text: 'سياسة الخصوصية',
-                              style: TextStyle(
-                                color: Color(0xFFFFD700),
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                            TextSpan(text: ' و '),
-                            TextSpan(
-                              text: 'شروط الخدمة',
-                              style: TextStyle(
-                                color: Color(0xFFFFD700),
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  // Google Login Button (White circular shape + custom Google icon + Google text)
+                  _buildGoogleButton(),
+                  const SizedBox(height: 20),
+                  // Privacy & Terms Checkbox
+                  _buildPrivacyRow(),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
