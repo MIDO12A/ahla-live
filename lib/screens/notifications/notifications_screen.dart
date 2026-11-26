@@ -6,6 +6,7 @@ import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../models/notification_model.dart';
 import '../../providers/user_provider.dart';
+import '../../services/supabase_auth_service.dart';
 import '../../features/cp/cp_service.dart';
 import '../../features/cp/cp_detail_full_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
@@ -14,6 +15,8 @@ import '../../features/host_agency/screens/agency_join_requests_screen.dart';
 import '../../features/host_agency/data/agency_repository.dart';
 import '../../services/dynamic_config_service.dart';
 import 'package:zero/core/dtext.dart';
+import '../common/app_webview_screen.dart';
+import '../../utils/app_action_navigator.dart';
 
 /// Replicates [chat_activity_system_notification.xml] and [chat_adapter_activity_item.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -29,6 +32,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   late Stream<List<NotificationModel>> _notificationsStream;
   final Set<String> _processingNotifIds = {};
   final Set<String> _dismissedNotifIds = {};
+  String? _myCpPartnerUid;
 
   @override
   void initState() {
@@ -40,7 +44,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     //    حتى يختفي الـ badge عن persistent في شاشة الرسائل
     if (uid != null && uid.isNotEmpty) {
       SupabaseDataService().markAllNotificationsRead(uid);
+      _checkMyCp();
     }
+  }
+
+  Future<void> _checkMyCp() async {
+    try {
+      final myCp = await CpService.getMyData();
+      final partner = myCp['couple']?['partner'] as Map<String, dynamic>?;
+      final pUid = partner?['id']?.toString() ?? partner?['uid']?.toString();
+      if (mounted && pUid != null && pUid.isNotEmpty) {
+        setState(() => _myCpPartnerUid = pUid);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -162,8 +178,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final isGift = notif.type == 'gift';
     final action = notif.data?['action'] as String?;
     final giftImage = notif.data?['gift_image']?.toString() ?? '';
-    final notifImg = notif.data?['img']?.toString() ??
+    final notifImg = notif.imageUrl ??
+        notif.data?['img']?.toString() ??
         notif.data?['image_url']?.toString() ??
+        '';
+    final targetUrl = notif.linkUrl ??
+        notif.data?['link_url']?.toString() ??
+        notif.data?['url']?.toString() ??
+        notif.data?['action_url']?.toString() ??
         '';
 
     return Padding(
@@ -253,19 +275,136 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                         ),
 
-                      // iv_notification_img: ratio 262:74, round corner radius 8dp, marginTop 6dp
+                      // صورة الإشعار مع إمكانية الضغط لفتح الرابط في متصفح التطبيق (In-App Web Viewer)
                       if (notifImg.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: AspectRatio(
-                              aspectRatio: 262 / 74,
-                              child: Image(
-                                image: R.cachedImage(notifImg),
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    const SizedBox.shrink(),
+                          padding: const EdgeInsets.only(top: 8),
+                          child: GestureDetector(
+                            onTap: () {
+                              if (targetUrl.isNotEmpty) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AppWebViewScreen(
+                                      url: targetUrl,
+                                      title: notif.title.isNotEmpty ? notif.title : 'صفحة الويب',
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AppWebViewScreen(
+                                      url: notifImg,
+                                      title: notif.title.isNotEmpty ? notif.title : 'عرض الصورة',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 200,
+                                      minWidth: double.infinity,
+                                    ),
+                                    child: Image(
+                                      image: R.cachedImage(notifImg),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                ),
+                                if (targetUrl.isNotEmpty)
+                                  Positioned(
+                                    bottom: 6,
+                                    right: 6,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.7),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.touch_app_rounded, color: Color(0xFFFFD700), size: 14),
+                                          SizedBox(width: 4),
+                                          DText(
+                                            'اضغط لفتح الرابط',
+                                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      // زر فتح الرابط في متصفح التطبيق المدمج
+                      if (targetUrl.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AppWebViewScreen(
+                                    url: targetUrl,
+                                    title: notif.title.isNotEmpty ? notif.title : 'صفحة الويب',
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF2C1947), Color(0xFF1B112B)],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFFFD700).withValues(alpha: 0.7),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.language_rounded, size: 16, color: Color(0xFFFFD700)),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: DText(
+                                      isAr ? 'فتح الرابط في متصفح التطبيق' : 'Open Link in App Viewer',
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFD700),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Color(0xFFFFD700)),
+                                ],
                               ),
                             ),
                           ),
@@ -738,62 +877,130 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                       // CP Relationship Request Action
                       if (action == 'cp_request' || action == 'cp_relationship_request' || notif.type == 'cp_invite' || notif.type == 'cp_gift')
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: Row(
-                            children: [
-                              _actionButton(
-                                label: isAr ? 'قبول CP 💕' : 'Accept CP 💕',
-                                color: const Color(0xFFFF2D78),
-                                isLoading: _processingNotifIds.contains(notif.id),
-                                onTap: () async {
-                                  if (_processingNotifIds.contains(notif.id)) return;
-                                  setState(() {
-                                    _processingNotifIds.add(notif.id);
-                                    _dismissedNotifIds.add(notif.id);
-                                  });
+                        Builder(
+                          builder: (context) {
+                            final senderId = notif.data?['sender_id']?.toString() ?? notif.actorUid.toString();
+                            final isAlreadyPartner = _myCpPartnerUid != null &&
+                                (_myCpPartnerUid == senderId || _myCpPartnerUid == notif.actorUid.toString());
 
-                                  final reqId = notif.data?['request_id']?.toString();
-                                  if (reqId != null && reqId.isNotEmpty) {
-                                    await CpService.respondRequest(reqId, true);
-                                  }
-                                  if (notif.id.isNotEmpty) {
-                                    try {
-                                      await SupabaseDataService().deleteNotification(notif.id);
-                                    } catch (_) {}
-                                  }
-                                  if (mounted) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const CPDetailFullScreen(),
+                            if (isAlreadyPartner) {
+                              if (!_dismissedNotifIds.contains(notif.id)) {
+                                _dismissedNotifIds.add(notif.id);
+                                if (notif.id.isNotEmpty) {
+                                  try {
+                                    SupabaseDataService().deleteNotification(notif.id);
+                                  } catch (_) {}
+                                }
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF2D78).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.favorite, color: Color(0xFFFF2D78), size: 14),
+                                      const SizedBox(width: 4),
+                                      DText(
+                                        isAr ? 'تم الارتباط بنجاح 💕' : 'Linked Successfully 💕',
+                                        style: const TextStyle(
+                                          color: Color(0xFFFF2D78),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                    );
-                                  }
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              _actionButton(
-                                label: isAr ? 'رفض' : 'Reject',
-                                color: const Color(0xFF9BA1B6),
-                                isLoading: _processingNotifIds.contains(notif.id),
-                                onTap: () async {
-                                  if (_processingNotifIds.contains(notif.id)) return;
-                                  setState(() {
-                                    _processingNotifIds.add(notif.id);
-                                    _dismissedNotifIds.add(notif.id);
-                                  });
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
 
-                                  if (notif.id.isNotEmpty) {
-                                    try {
-                                      await SupabaseDataService().deleteNotification(notif.id);
-                                    } catch (_) {}
-                                  }
-                                },
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Row(
+                                children: [
+                                  _actionButton(
+                                    label: isAr ? 'قبول CP 💕' : 'Accept CP 💕',
+                                    color: const Color(0xFFFF2D78),
+                                    isLoading: _processingNotifIds.contains(notif.id),
+                                    onTap: () async {
+                                      if (_processingNotifIds.contains(notif.id)) return;
+                                      setState(() {
+                                        _processingNotifIds.add(notif.id);
+                                        _dismissedNotifIds.add(notif.id);
+                                      });
+
+                                      var reqId = notif.data?['request_id']?.toString();
+                                      if (reqId == null || reqId.isEmpty) {
+                                        if (senderId.isNotEmpty) {
+                                          final pending =
+                                              await CpService.getPendingRequestFrom(senderId);
+                                          reqId = pending?['id']?.toString();
+                                        }
+                                      }
+                                      if (reqId != null && reqId.isNotEmpty) {
+                                        final result = await CpService.respondRequest(reqId, true);
+                                        final err = result['error']?.toString();
+                                        if (err != null && err.isNotEmpty) {
+                                          if (mounted) {
+                                            setState(() {
+                                              _processingNotifIds.remove(notif.id);
+                                              _dismissedNotifIds.remove(notif.id);
+                                            });
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                              content: Text(err),
+                                              backgroundColor: Colors.redAccent,
+                                            ));
+                                          }
+                                          return;
+                                        }
+                                      } else if (senderId.isNotEmpty) {
+                                        // Fallback: ربط مباشر لو الطلب مش متخزن في الجدول
+                                        final durHours = (notif.data?['duration_hours'] as num?)?.toInt() ?? 720;
+                                        await CpService.directLinkCouple(
+                                          user1Uid: senderId,
+                                          user2Uid: SupabaseAuthService().currentUser?.uid ?? '',
+                                          durationHours: durHours,
+                                          giftId: notif.data?['gift_id']?.toString() ?? 'ring_1',
+                                        );
+                                      }
+                                      if (notif.id.isNotEmpty) {
+                                        try {
+                                          await SupabaseDataService().deleteNotification(notif.id);
+                                        } catch (_) {}
+                                      }
+                                      if (mounted) {
+                                        CPDetailFullScreen.navigateToCp(context);
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _actionButton(
+                                    label: isAr ? 'رفض' : 'Reject',
+                                    color: const Color(0xFF9BA1B6),
+                                    isLoading: _processingNotifIds.contains(notif.id),
+                                    onTap: () async {
+                                      if (_processingNotifIds.contains(notif.id)) return;
+                                      setState(() {
+                                        _processingNotifIds.add(notif.id);
+                                        _dismissedNotifIds.add(notif.id);
+                                      });
+
+                                      if (notif.id.isNotEmpty) {
+                                        try {
+                                          await SupabaseDataService().deleteNotification(notif.id);
+                                        } catch (_) {}
+                                      }
+                                    },
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                     ],
                   ),

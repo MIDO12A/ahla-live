@@ -5,7 +5,6 @@ import '../screens/level/level_screen.dart';
 import '../screens/backpack/backpack_screen.dart';
 import '../screens/rank/rank_screen.dart';
 import '../features/cp/cp_detail_full_screen.dart';
-import '../features/cp/cp_space_screen.dart';
 import '../screens/vip/vip_center_screen.dart';
 import '../features/tasks/screens/daily_tasks_screen.dart';
 import '../features/signin/weekly_signin_screen.dart';
@@ -13,6 +12,7 @@ import '../features/host_agency/host_agency_screen.dart';
 import '../features/events/screens/recharge_event_screen.dart';
 import '../screens/wallet/wallet_main_screen.dart';
 import '../screens/room/room_screen.dart';
+import '../screens/common/app_webview_screen.dart';
 import '../services/supabase_service.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -62,7 +62,7 @@ class AppActionNavigator {
         lower.contains('مساحة الترتيب') ||
         lower.contains('مكافآت cp') ||
         lower.contains('مكافات cp')) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const CPDetailFullScreen()));
+      CPDetailFullScreen.navigateToCp(context);
       return;
     }
 
@@ -74,7 +74,9 @@ class AppActionNavigator {
         lower.contains('مساحة العلاقات') ||
         lower.contains('ارتباط') ||
         lower.contains('علاقات')) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const CpSpaceScreen()));
+      // ✅ يفتح على ترتيب CP مباشرة — مساحة CP متاحة من
+      //    زر الصورة الشخصية داخل شاشة الترتيب
+      CPDetailFullScreen.navigateToCp(context);
       return;
     }
 
@@ -122,16 +124,17 @@ class AppActionNavigator {
       }
     }
 
-    // 3. External HTTP / HTTPS link
+    // 3. Web link — فتح الرابط داخل متصفح التطبيق (In-App Web Viewer)
     if (lower.startsWith('http://') || lower.startsWith('https://')) {
-      final uri = Uri.tryParse(value);
-      if (uri != null) {
-        try {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } catch (e) {
-          debugPrint('Failed to launch URL: $e');
-        }
-      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AppWebViewScreen(
+            url: value,
+            title: 'صفحة الويب',
+          ),
+        ),
+      );
       return;
     }
 
