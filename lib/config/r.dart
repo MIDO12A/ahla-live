@@ -7,7 +7,7 @@ import '../screens/room/widgets/vap_player.dart';
 import '../core/cache/encrypted_image_provider.dart';
 import '../core/widgets/cached_image.dart';
 
-enum AssetType { svga, vap, mp4, webp, gif, png, other }
+enum AssetType { svga, vap, mp4, pag, webp, gif, png, other }
 
 AssetType detectAssetType(String url) {
   if (url.isEmpty) return AssetType.other;
@@ -17,6 +17,7 @@ AssetType detectAssetType(String url) {
       case 'svga': return AssetType.svga;
       case 'vap': return AssetType.vap;
       case 'mp4': return AssetType.mp4;
+      case 'pag': return AssetType.pag;
       case 'webp': return AssetType.webp;
       case 'gif': return AssetType.gif;
       case 'apng': return AssetType.gif;
@@ -27,6 +28,7 @@ AssetType detectAssetType(String url) {
   if (clean.endsWith('.svga')) return AssetType.svga;
   if (clean.endsWith('.vap')) return AssetType.vap;
   if (clean.endsWith('.mp4')) return AssetType.mp4;
+  if (clean.endsWith('.pag')) return AssetType.pag;
   if (clean.endsWith('.webp')) return AssetType.webp;
   if (clean.endsWith('.gif')) return AssetType.gif;
   if (clean.endsWith('.apng')) return AssetType.gif;
@@ -171,7 +173,7 @@ class R {
   static const String checkinDialogConfirmBigBtn =
       '$_m/checkin_dialog_confirm_big_btn.png';
   static const String discoverFollowCardBg =
-      '$_m/discover_follow_card_bg.webp';
+      'assets/images/discover_create_room_card.png';
 
   // Gift notice / combo
   static const String comboFire = '$_m/combo_fire.webp';
@@ -239,15 +241,17 @@ class R {
   static const String bgPagerTop = 'assets/drawable/bg_pager_top.png';
 
   // Tab assets
-  static const String tabDiscoverNor = '$_m/tab_discover_nor.webp';
-  static const String tabDiscoverPre = '$_m/tab_discover_pre.webp';
+  static const String tabDiscoverNor = '$_m/home_tab_room_un_checkout.png';
+  static const String tabDiscoverPre = '$_m/home_tab_room_checkout.png';
   static const String tabRankingNor = 'assets/images/ic_rank_cup_gold.png';
   static const String roomRankCupIcon = 'assets/images/ic_rank_cup_gold.png';
   static const String tabRankingPre = '$_m/tab_discover_pre.webp';
-  static const String tabMessageNor = '$_m/tab_message_nor.webp';
-  static const String tabMessagePre = '$_m/tab_message_pre.webp';
-  static const String tabMineNor = '$_m/tab_mine_nor.webp';
-  static const String tabMinePre = '$_m/tab_mine_pre.webp';
+  static const String tabMessageNor = '$_m/home_tab_chat_un_checkout.png';
+  static const String tabMessagePre = '$_m/home_tab_chat_checkout.png';
+  static const String tabMomentsNor = '$_m/home_tab_game_un_checkout.png';
+  static const String tabMomentsPre = '$_m/home_tab_game_checkout.png';
+  static const String tabMineNor = '$_m/home_tab_mine_un_checkout.png';
+  static const String tabMinePre = '$_m/home_tab_mine_checkout.png';
 
   // Discover screen assets
   static const String discoverHeaderBg = '$_m/discover_header_bg.webp';
@@ -304,7 +308,7 @@ class R {
   static const String mineReportIc = '$_m/mine_report_ic.webp';
   static const String mineSettingIc = '$_m/mine_setting_ic.webp';
   static const String minePhotoAddIc = '$_m/mine_photo_add_ic.webp';
-  static const String mineUnionIc = '$_m/mine_union_ic.webp';
+  static const String mineUnionIc = '$_m/mine_agency_ic.png';
   static const String minePhoneIc = '$_m/mine_phone_ic.webp';
   static const String mineGoogleIc = '$_m/mine_google_ic.webp';
   static const String mineFollowNorIc = '$_m/mine_follow_nor_ic.webp';
@@ -321,9 +325,10 @@ class R {
   static const String unionAgencyTop2 = '$_m/union_agency_top_2.webp';
   static const String unionAgencyTop3 = '$_m/union_agency_top_3.webp';
   static const String mineFollowPreIc = '$_m/mine_follow_pre_ic.webp';
-  static const String mineLevelIc = '$_m/mine_level_ic.webp';
-  static const String mineBackpackIc = '$_m/mine_backpack_ic.webp';
-  static const String mineMallIc = '$_m/mine_mall_ic.webp';
+  static const String mineLevelIc = '$_m/mine_level_ic.png';
+  static const String mineBackpackIc = '$_m/mine_backpack_ic.png';
+  static const String mineTaskIc = '$_m/mine_task_ic.png';
+  static const String mineMallIc = '$_m/mine_mall_ic.png';
   static const String mineUserEditIc = '$_m/mine_user_edit_ic.webp';
   static const String mineDeleteIc = '$_m/mine_delete_ic.webp';
   static const String mineBlackIc = '$_m/mine_black_ic.webp';
@@ -341,12 +346,12 @@ class R {
   static const String icSexBoy = '$_m/ic_sex_boy.webp';
   static const String commonUserIdIc = '$_m/common_user_id_ic.webp';
   static const String commonIdCopyIc = '$_m/common_id_copy_ic.webp';
-  static const String mineWalletIc = '$_m/mine_wallet_ic.webp';
+  static const String mineWalletIc = '$_m/mine_wallet_ic.png';
   static const String mineVipCenterBg = '$_m/mine_vip_center_bg.webp';
   static const String mineMallTabVipIc = '$_m/mine_mall_tab_vip_ic.webp';
   static const String mineVipLabelIc = '$_m/mine_vip_label_ic.webp';
   static const String mineVipGo = '$_m/mine_vip_go.webp';
-  static const String mineCpIc = '$_m/mine_cp_ic.webp';
+  static const String mineCpIc = '$_m/mine_cp_ic.png';
 
   // Sex icons
   static const String sexMaleIc = '$_m/sex_male_ic.webp';

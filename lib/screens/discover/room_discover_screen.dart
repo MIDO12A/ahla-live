@@ -9,7 +9,6 @@ import '../../services/dynamic_config_service.dart';
 import '../../services/media_prefetch_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
-import '../../models/banner_config.dart';
 import '../../models/room_model.dart';
 import '../../providers/user_provider.dart';
 import 'create_room_screen.dart';
@@ -19,10 +18,12 @@ import '../../screens/room/widgets/svga_player.dart';
 import '../../screens/room/widgets/vap_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../screens/rank/rank_screen.dart';
-import '../../utils/app_action_navigator.dart';
 import 'global_search_delegate.dart';
-import '../../widgets/user_id_widget.dart';
 import 'package:zero/core/dtext.dart';
+import '../../widgets/user_id_widget.dart';
+import '../../widgets/banner_carousel.dart';
+import '../../features/signin/weekly_signin_screen.dart';
+import '../../features/signin/signin_service.dart';
 
 class RoomDiscoverScreen extends StatefulWidget {
   const RoomDiscoverScreen({super.key});
@@ -72,6 +73,113 @@ class _AudioWaveIndicatorState extends State<_AudioWaveIndicator>
           ],
         );
       },
+    );
+  }
+}
+
+class _DailySigninFloatingBadge extends StatefulWidget {
+  const _DailySigninFloatingBadge();
+
+  @override
+  State<_DailySigninFloatingBadge> createState() => _DailySigninFloatingBadgeState();
+}
+
+class _DailySigninFloatingBadgeState extends State<_DailySigninFloatingBadge>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseCtrl;
+  late Animation<double> _scaleAnim;
+  bool _hasClaimed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+
+    _scaleAnim = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+
+    _checkStatus();
+  }
+
+  Future<void> _checkStatus() async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final uid = userProvider.currentUser?.uid;
+      if (uid != null) {
+        final claimed = await SigninService.hasClaimedToday(uid);
+        if (mounted) setState(() => _hasClaimed = claimed);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        await WeeklySigninScreen.show(context);
+        _checkStatus();
+      },
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) => Transform.scale(
+          scale: _hasClaimed ? 1.0 : _scaleAnim.value,
+          child: child,
+        ),
+        child: Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7B1FA2).withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipOval(
+                child: Image.asset(
+                  // بعد تسجيل الوصول اليومي تتحول الأيقونة للصورة المميزة
+                  _hasClaimed
+                      ? 'assets/images/ic_daily_signin_claimed.png'
+                      : 'assets/images/ic_daily_signin_badge.png',
+                  width: 54,
+                  height: 54,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              if (!_hasClaimed)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    width: 13,
+                    height: 13,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF1744),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -528,17 +636,27 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: Column(
+        body: Stack(
           children: [
-            _buildHeader(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildDiscoverContent(isFollowTab: true, user: user),
-                  _buildDiscoverContent(isFollowTab: false, user: user),
-                ],
-              ),
+            Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildDiscoverContent(isFollowTab: true, user: user),
+                      _buildDiscoverContent(isFollowTab: false, user: user),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // أيقونة تسجيل الوصول اليومي فكسد على اليسار فوق حسابي
+            const Positioned(
+              left: 14,
+              bottom: 16,
+              child: _DailySigninFloatingBadge(),
             ),
           ],
         ),
@@ -658,8 +776,6 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final cfg = DynamicConfigService();
 
-    final Color bgColor = cfg.discoverFollowCardBgColor;
-    final Color borderColor = cfg.discoverFollowCardBorderColor;
     final Color btnColor = cfg.discoverFollowCardBtnColor;
     final String bgImage = cfg.discoverFollowCardBgImage;
 
@@ -669,12 +785,11 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1),
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -682,211 +797,287 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       ),
       child: Stack(
         children: [
+          // خلفية الكرت باستخدام الصورة الذهبية بدلاً من الخلفية الرمادي
           Positioned.fill(
             child: bgImage.isNotEmpty
                 ? CachedNetImage(
-              bgImage,
-              fit: BoxFit.cover,
-              error: (_, __, ___) => const SizedBox.shrink(),
-            )
+                    bgImage,
+                    fit: BoxFit.cover,
+                    error: (_, __, ___) => Image.asset(
+                      'assets/images/discover_create_room_card.png',
+                      fit: BoxFit.cover,
+                    ),
+                  )
                 : Image.asset(
-              R.discoverFollowCardBg,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    'assets/images/discover_create_room_card.png',
+                    fit: BoxFit.cover,
+                  ),
+          ),
+          // طبقة تظليل خفيفة لإبراز النصوص البيضاء بوضوح عالي
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withValues(alpha: 0.45),
+                    Colors.black.withValues(alpha: 0.2),
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(12),
             child: room != null
                 ? Row(
-              children: [
-                // 1. Room Photo with Sound Wave Animation
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: btnColor, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: btnColor.withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            spreadRadius: 1,
+                    children: [
+                      // 1. Room Photo with Sound Wave Animation
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: btnColor, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: btnColor.withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: room.roomPhotoUrl.isNotEmpty
+                                  ? CachedNetImage(
+                                      _cloudinaryThumb(room.roomPhotoUrl, width: 128),
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                      error: (_, __, ___) => Image.asset(_roomDefaultAsset, width: 50, height: 50, fit: BoxFit.cover),
+                                    )
+                                  : Image.asset(_roomDefaultAsset, width: 50, height: 50, fit: BoxFit.cover),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const _AudioWaveIndicator(),
+                            ),
                           ),
                         ],
                       ),
-                      child: ClipOval(
-                        child: room.roomPhotoUrl.isNotEmpty
-                            ? CachedNetImage(
-                          _cloudinaryThumb(room.roomPhotoUrl, width: 128),
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          error: (_, __, ___) => Image.asset(_roomDefaultAsset, width: 50, height: 50, fit: BoxFit.cover),
-                        )
-                            : Image.asset(_roomDefaultAsset, width: 50, height: 50, fit: BoxFit.cover),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const _AudioWaveIndicator(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                // 2. Room Name and Room ID
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: DText(
-                              room.name,
+                      const SizedBox(width: 12),
+                      // 2. Room Name and Room ID
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: DText(
+                                    room.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
+                                      ],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: btnColor.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: btnColor.withValues(alpha: 0.8), width: 0.5),
+                                  ),
+                                  child: DText(
+                                    isAr ? 'غرفتي' : 'My Room',
+                                    style: TextStyle(
+                                      color: btnColor,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            DText(
+                              'ID: ${room.roomId}',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                shadows: [
+                                  Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
+                                ],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // 3. "Enter" (دخول) Button with custom card style and white text
+                      GestureDetector(
+                        onTap: () {
+                          navigateToRoom(
+                            context,
+                            roomName: room.name,
+                            hostName: room.hostName,
+                            hostUid: room.hostUid,
+                            roomId: room.roomId,
+                            roomPassword: room.password,
+                          );
+                        },
+                        child: Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            image: const DecorationImage(
+                              image: AssetImage('assets/images/discover_create_room_card.png'),
+                              fit: BoxFit.fill,
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          alignment: Alignment.center,
+                          child: DText(
+                            isAr ? 'دخول' : 'Enter',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black87,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : GestureDetector(
+                    onTap: _goToCreateOrMyRoom,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(Icons.add_home_work_rounded, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              DText(
+                                isAr ? 'ليس لديك غرفة بعد' : 'No Room Created Yet',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              DText(
+                                isAr ? 'ابدأ الآن بإنشاء غرفتك الخاصة وتحدث مع أصدقائك' : 'Create your room and start chatting',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  shadows: const [
+                                    Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
+                                  ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // زر إنشاء روم باستخدام نفس تصميم الكارت والخط الأبيض
+                        GestureDetector(
+                          onTap: _goToCreateOrMyRoom,
+                          child: Container(
+                            height: 38,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(
-                              color: btnColor.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: btnColor.withValues(alpha: 0.6), width: 0.5),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                              image: const DecorationImage(
+                                image: AssetImage('assets/images/discover_create_room_card.png'),
+                                fit: BoxFit.fill,
+                              ),
                             ),
+                            alignment: Alignment.center,
                             child: DText(
-                              isAr ? 'غرفتي' : 'My Room',
-                              style: TextStyle(
-                                color: btnColor,
-                                fontSize: 9,
+                              isAr ? 'إنشاء روم' : 'Create Room',
+                              style: const TextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black87,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      DText(
-                        'ID: ${room.roomId}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // 3. Yellow "Enter" (دخول) Button
-                ElevatedButton(
-                  onPressed: () {
-                    navigateToRoom(
-                      context,
-                      roomName: room.name,
-                      hostName: room.hostName,
-                      hostUid: room.hostUid,
-                      roomId: room.roomId,
-                      roomPassword: room.password,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: btnColor,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    elevation: 3,
-                  ),
-                  child: DText(
-                    isAr ? 'دخول' : 'Enter',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
+                      ],
                     ),
                   ),
-                ),
-              ],
-            )
-                : Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.add_home_work_rounded, color: Colors.white70, size: 28),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DText(
-                        isAr ? 'ليس لديك غرفة بعد' : 'No Room Created Yet',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      DText(
-                        isAr ? 'ابدأ الآن بإنشاء غرفتك الخاصة وتحدث مع أصدقائك' : 'Create your room and start chatting',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _goToCreateOrMyRoom,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: btnColor,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    elevation: 3,
-                  ),
-                  child: DText(
-                    isAr ? 'إنشاء روم' : 'Create Room',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -957,7 +1148,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
               SliverToBoxAdapter(
                 child: isFollowTab
                     ? _buildMyRoomCard(user)
-                    : const _BannerCarousel(),
+                    : const BannerCarousel(),
               ),
               // شريط الهاشتاجات/الدول — يثبت أعلى القائمة أثناء التمرير
               SliverPersistentHeader(
@@ -1755,145 +1946,6 @@ class RoomRankBorderWidget extends StatelessWidget {
         }
 
         return IgnorePointer(child: child);
-      },
-    );
-  }
-}
-
-class _BannerCarousel extends StatefulWidget {
-  const _BannerCarousel();
-
-  @override
-  State<_BannerCarousel> createState() => _BannerCarouselState();
-}
-
-class _BannerCarouselState extends State<_BannerCarousel> {
-  final SupabaseService _firebaseService = SupabaseService();
-  static List<BannerConfig> _cachedBanners = [];
-  late PageController _bannerController;
-  Timer? _bannerTimer;
-  late final Stream<List<BannerConfig>> _bannersStream;
-  int _currentBannerPage = 0;
-  List<BannerConfig> _banners = [];
-  bool _initializedPage = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _banners = _cachedBanners;
-    _bannersStream = _firebaseService.bannersStream().asBroadcastStream();
-    final initial = _banners.isNotEmpty ? _banners.length * 1000 : 5000;
-    _bannerController = PageController(initialPage: initial);
-    _startTimer();
-  }
-
-  void _startTimer() {
-    _bannerTimer?.cancel();
-    _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (_bannerController.hasClients && _banners.length > 1) {
-        _bannerController.nextPage(
-          duration: const Duration(milliseconds: 450),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _bannerTimer?.cancel();
-    _bannerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<BannerConfig>>(
-      stream: _bannersStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          _cachedBanners = snapshot.data!;
-          _banners = _cachedBanners;
-          if (!_initializedPage && _banners.isNotEmpty) {
-            _initializedPage = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (_bannerController.hasClients) {
-                final target = _banners.length * 1000;
-                _bannerController.jumpToPage(target);
-              }
-            });
-          }
-        } else if (_banners.isEmpty && _cachedBanners.isNotEmpty) {
-          _banners = _cachedBanners;
-        }
-
-        if (_banners.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          children: [
-            SizedBox(
-              height: 160,
-              child: PageView.builder(
-                controller: _bannerController,
-                onPageChanged: (page) {
-                  setState(() => _currentBannerPage = page % _banners.length);
-                },
-                itemBuilder: (context, index) {
-                  final banner = _banners[index % _banners.length];
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: GestureDetector(
-                        onTap: () {
-                          AppActionNavigator.handleAction(
-                            context,
-                            actionType: banner.actionType,
-                            actionValue: banner.actionValue,
-                            rawLink: banner.linkUrl,
-                          );
-                        },
-                        child: CachedNetImage(
-                          banner.imageUrl,
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: const Color(0xFFF0F0F0),
-                            child: const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                          error: (context, error, stackTrace) => Container(
-                            color: const Color(0xFF221A2E),
-                            child: const Center(child: Icon(Icons.campaign, color: Colors.white24, size: 28)),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_banners.length, (i) {
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: _currentBannerPage == i ? 20 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _currentBannerPage == i
-                        ? const Color(0xFF16151A)
-                        : const Color(0x33808080),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                );
-              }),
-            ),
-          ],
-        );
       },
     );
   }
