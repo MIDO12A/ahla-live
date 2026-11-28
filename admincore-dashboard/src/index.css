@@ -1,4 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+/* ========== Professional Design System ========== */
+:root {
+  --font-ar: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+  --font-en: 'Inter', system-ui, sans-serif;
+  --accent: #6366f1;
+  --accent-2: #a855f7;
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --stroke: rgba(255, 255, 255, 0.09);
+}
+
+html { color-scheme: dark; }
+body {
+  font-family: var(--font-ar);
+  background: #08080a;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+[dir="ltr"] body, body:lang(en) { font-family: var(--font-en); }
+::selection { background: rgba(99, 102, 241, 0.4); color: #fff; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { transition: all .2s cubic-bezier(.4,0,.2,1); }
+*:focus-visible { outline: 2px solid rgba(129, 140, 248, .7); outline-offset: 2px; }
+
+/* Subtle ambient grid — يضيف عمق بدون ما يزاحم المحتوى */
+.pro-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, #000, transparent 75%);
+}
+
+.panel-title {
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: #fff;
+}
+.panel-sub { color: #64748b; font-size: 11px; margin-top: 2px; }
+
+/* Badges */
+.badge { display:inline-flex; align-items:center; gap:5px; border-radius:9999px; padding:3px 9px; font-size:10px; font-weight:800; }
+.badge-ok { background:rgba(16,185,129,.12); color:#6ee7b7; border:1px solid rgba(16,185,129,.22); }
+.badge-warn { background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.22); }
+.badge-danger { background:rgba(244,63,94,.12); color:#fda4af; border:1px solid rgba(244,63,94,.22); }
+
+/* Table polish */
+table th { color:#64748b !important; font-weight:800 !important; letter-spacing:.04em; }
+table td { border-color: rgba(255,255,255,.055) !important; }
+table tbody tr:hover { background: rgba(255,255,255,.025); }
+
+/* Buttons / inputs used across all pages */
+.btn-primary {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff; font-weight: 800; border-radius: 12px;
+  box-shadow: 0 6px 20px -6px rgba(99,102,241,.65);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -6px rgba(99,102,241,.8); }
+.field {
+  background: rgba(10,10,12,.75);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  color: #e2e8f0;
+  padding: 7px 10px;
+  font-size: 12px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.field:focus { border-color: rgba(129,140,248,.6); box-shadow: 0 0 0 3px rgba(99,102,241,.14); outline:none; }
+
+/* Skeleton shimmer */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton { position:relative; overflow:hidden; background:rgba(255,255,255,.05); border-radius:8px; }
+.skeleton::after { content:''; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent); animation:shimmer 1.4s infinite; }
+
+/* ========== Responsive polish — mobiles / tablets / laptops ========== */
+@media (max-width: 640px) {
+  h1, h2 { font-size: 1.15rem !important; }
+  h3 { font-size: .9rem !important; }
+  .glass, .glass-strong, .card-3d { backdrop-filter: blur(10px); }
+  main { padding: 12px !important; }
+  input, select, textarea, button { font-size: 12px !important; }
+  .field { padding: 6px 9px; }
+}
+@media (min-width: 641px) and (max-width: 1024px) {
+  main { padding: 18px !important; }
+}
+/* صور/أكواد ما تتجاوزش عرض الحاوية على الشاشات الصغيرة */
+img { max-width: 100%; height: auto; }
+pre { white-space: pre-wrap; word-break: break-word; }
+/* تحسين مظهر الـ scrollbars علىwebkit */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(148,163,184,.22); }
+::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.4); }
+
 
 /* Custom Sleek Scrollbar */
 ::-webkit-scrollbar {

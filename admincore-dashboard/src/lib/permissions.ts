@@ -18,6 +18,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     en: 'Users & Moderation',
     items: [
       { key: 'users', ar: 'إدارة المستخدمين والحسابات', en: 'Users Management' },
+      { key: 'moments', ar: 'إدارة اللحظات والمنشورات والتعليقات', en: 'Moments Management' },
       { key: 'reports', ar: 'البلاغات والتقارير', en: 'Reports & Moderation' },
       { key: 'dashboard_bans', ar: 'الحظر من لوحة الإدارة', en: 'Dashboard Bans' },
     ],
@@ -174,6 +175,9 @@ export function canUserAccess(
   // Top-level route fallbacks (allow sidebar navigation if user holds ANY child permission)
   if (permKey === 'agency' && perms.some(p => p.startsWith('agency_') || p === 'agency')) return true;
   if (permKey === 'gifts' && perms.some(p => p.startsWith('gift_') || p === 'gifts')) return true;
+  // ✅ تبويبات صندوق الهدايا جزء من صفحة الهدايا — أي مشرف يقدر يدير الهدايا
+  //    لازم يشوف «تصنيفات وأقسام الهدايا» حتى لو ما عنده الصلاحية الفرعية.
+  if (permKey === 'gift_categories' && (perms.includes('gifts') || perms.some(p => p.startsWith('gift_')))) return true;
 
   return false;
 }

@@ -40,6 +40,7 @@ function serveParentAssets(): Plugin {
 
 export default defineConfig(() => {
   return {
+    root: __dirname,
     plugins: [react(), tailwindcss(), serveParentAssets()],
     resolve: {
       alias: {

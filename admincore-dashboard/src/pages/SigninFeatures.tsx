@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { I18nContext } from '../lib/i18n';
 import { getSigninRewards, upsertSigninReward, updateSigninReward, deleteSigninReward, getAppConfig, updateAppConfig, getStoreItems, getVIPConfig } from '../lib/db';
 import { uploadAppAsset } from '../lib/storage';
@@ -187,7 +187,20 @@ export default function SigninFeaturesPage() {
       if (value === 'gift') next.value = 0;
       else next.gift_id = '';
     }
-    if (field === 'gift_id') next.value = 0; // مكافأة عينية = بدون عملات
+    if (field === 'gift_id') {
+      next.value = 0; // مكافأة عينية = بدون عملات
+      if (value) {
+        const found = storeItems.find((it: any) => (it.itemId || it.item_id || it.id) === value);
+        if (found) {
+          const itemIcon = found.icon_url || found.iconUrl || found.icon || found.iconAsset || found.icon_asset || found.image_url || found.image || '';
+          if (itemIcon) next.icon_url = itemIcon;
+          const itemName = found.name || found.nameAr || found.name_ar || '';
+          if (itemName && !next.label_ar) next.label_ar = itemName;
+          const svga = found.svga_url || found.svgaUrl || found.svgaAsset || found.svga_asset || '';
+          if (svga && !next.svga_url) next.svga_url = svga;
+        }
+      }
+    }
     return next;
   });
 

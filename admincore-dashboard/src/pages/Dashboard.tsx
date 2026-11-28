@@ -30,14 +30,24 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-white text-xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-slate-500 text-xs mt-1">Real-time overview of your app</p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse" />
-          Live
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-l from-indigo-600/25 via-violet-600/10 to-transparent p-6 sm:p-7">
+        <div className="absolute -left-16 -top-20 h-64 w-64 rounded-full bg-indigo-500/20 blur-[90px]" />
+        <div className="absolute bottom-0 right-1/4 h-24 w-24 rounded-full bg-fuchsia-500/10 blur-[60px]" />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.2em] text-indigo-300/80">
+              <span className="h-px w-6 bg-indigo-400/60" /> Overview
+            </div>
+            <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">مرحباً بك 👋</h2>
+            <p className="mt-1.5 text-xs text-slate-400">نظرة لحظية على أداء التطبيق والإحصائيات الرئيسية</p>
+            <p className="mt-1 font-mono text-[10px] text-slate-600" dir="ltr">
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2 text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 backdrop-blur-md">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+            مباشر · Live
+          </div>
         </div>
       </div>
 

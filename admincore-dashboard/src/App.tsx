@@ -1,7 +1,9 @@
 import GamePoolManager from './pages/GamePoolManager';
+import GameLinks from './pages/GameLinks';
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthChange, type AppUser } from './lib/auth';
+import { startConnectionMonitor } from './lib/supabase';
 import { I18nContext } from './lib/i18n';
 import type { Lang } from './lib/i18n';
 import Layout from './components/Layout';
@@ -41,6 +43,7 @@ import AppVisualDesigner from './pages/AppVisualDesigner';
 import AppDesignCenter from './pages/AppDesignCenter';
 import AppIcons from './pages/AppIcons';
 import CpFeatures from './pages/CpFeatures';
+import CpSystemHealth from './pages/CpSystemHealth';
 import SigninFeatures from './pages/SigninFeatures';
 import AppUpdates from './pages/AppUpdates';
 import Reports from './pages/Reports';
@@ -54,6 +57,7 @@ import ZegoAudioSettings from './pages/ZegoAudioSettings';
 import RechargeEventManager from './pages/RechargeEventManager';
 import RechargeSettings from './pages/RechargeSettings';
 import RoomCupManager from './pages/RoomCupManager';
+import MomentsManager from './pages/MomentsManager';
 import t from './lib/i18n';
 
 export default function App() {
@@ -62,6 +66,8 @@ export default function App() {
   const [lang, setLang] = useState<Lang>('ar');
 
   useEffect(() => {
+    // ✅ مؤشر الاتصال بقى حقيقي: ping على Supabase كل 30 ثانية
+    startConnectionMonitor();
     const stored = localStorage.getItem('admin_lang');
     if (stored === 'ar' || stored === 'en') setLang(stored);
     const unsub = onAuthChange(u => {
@@ -142,6 +148,7 @@ export default function App() {
             <Route path="/app-visual-designer" element={<AppVisualDesigner />} />
             <Route path="/app-icons" element={<AppIcons />} />
             <Route path="/cp-features" element={<CpFeatures />} />
+            <Route path="/cp-health" element={<CpSystemHealth />} />
             <Route path="/signin-features" element={<SigninFeatures />} />
             <Route path="/app-updates" element={<AppUpdates />} />
             <Route path="/reports" element={<Reports />} />
@@ -153,6 +160,8 @@ export default function App() {
             <Route path="/recharge-event" element={<RechargeEventManager />} />
             <Route path="/recharge-settings" element={<RechargeSettings />} />
             <Route path="/game-pool" element={<GamePoolManager />} />
+<Route path="/game-links" element={<GameLinks />} />
+            <Route path="/moments" element={<MomentsManager />} />
           </Route>
         </Routes>
       </BrowserRouter>

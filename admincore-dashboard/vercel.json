@@ -3,5 +3,11 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/bo/:path*",
+      "destination": "https://pxyqgeitjdsilgfftnyd.supabase.co/:path*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

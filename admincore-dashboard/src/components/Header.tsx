@@ -64,7 +64,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const title = titleKey ? (titleKey.startsWith('nav.') ? t(titleKey) : titleKey) : 'Admin';
 
   return (
-    <header className="h-16 shrink-0 glass border-b border-white/8 flex items-center justify-between px-2.5 sm:px-4 lg:px-6 z-30 relative">
+    <header className="h-14 sm:h-16 shrink-0 glass border-b border-white/8 flex items-center justify-between px-2.5 sm:px-4 lg:px-6 z-30 relative shadow-lg shadow-black/20">
       <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
         <button
           onClick={onMenuClick}
@@ -74,9 +74,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-          <span className="text-indigo-300/60 text-[10px] uppercase tracking-[0.18em] font-bold hidden md:inline">Ahla Live</span>
-          <span className="text-slate-700 text-sm hidden md:inline">/</span>
-          <span className="text-white text-xs sm:text-sm font-bold truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">{title}</span>
+          <span className="hidden bg-gradient-to-l from-indigo-400 to-fuchsia-400 bg-clip-text text-[10px] font-extrabold uppercase tracking-[0.18em] text-transparent md:inline">Ahla Live</span>
+          <span className="hidden text-slate-700 text-sm md:inline">/</span>
+          <span className="truncate text-xs font-extrabold text-white sm:text-sm max-w-[120px] xs:max-w-[160px] sm:max-w-none">{title}</span>
         </div>
       </div>
 

@@ -2042,7 +2042,7 @@ export default function AppVisualDesigner() {
                             const file = e.target.files?.[0];
                             if (file) {
                               try {
-                                const url = await StorageService.uploadFile(file, `globals/${field}`);
+                                const url = await uploadAppAsset(file, `globals/${field}`);
                                 setGlobalImages(p => ({ ...p, [field]: url }));
                               } catch (err: any) {
                                 alert('Upload failed: ' + err.message);
@@ -2151,7 +2151,7 @@ export default function AppVisualDesigner() {
                             const file = e.target.files?.[0];
                             if (file) {
                               try {
-                                const url = await StorageService.uploadFile(file, `rooms/${key}`);
+                                const url = await uploadAppAsset(file, `rooms/${key}`);
                                 setRoomBgImages(p => ({ ...p, [key]: url }));
                               } catch (err: any) {
                                 alert('Upload failed: ' + err.message);

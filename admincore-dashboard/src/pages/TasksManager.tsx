@@ -93,10 +93,10 @@ export default function TasksManager() {
       if (storeRows) {
         setStoreItems(
           storeRows.map((d: any) => ({
-            id: d.id || d.item_id,
+            id: d.id || d.item_id || d.itemId,
             name: d.name || d.name_ar || d.id,
-            icon: d.icon_url || d.iconAsset || '',
-            type: d.type || 'item',
+            icon: d.icon_url || d.iconUrl || d.icon_asset || d.iconAsset || d.image_url || d.image || '',
+            type: d.type || d.category || 'item',
           }))
         );
       }

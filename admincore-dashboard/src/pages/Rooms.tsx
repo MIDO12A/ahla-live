@@ -1,10 +1,36 @@
 import { useEffect, useState } from 'react';
 import { RoomModel } from '../types';
-import { getRooms, deleteRoom, updateRoom, getRoomBlocks, deleteRoomBlock, getUsersByUids, type RoomBlockRow } from '../lib/db';
+import { getRooms, deleteRoom, updateRoom, getRoomBlocks, deleteRoomBlock, getUsersByUids, getAppConfig, updateAppConfig, type RoomBlockRow } from '../lib/db';
 import { uploadRoomPhoto, uploadRoomCover, detectAssetType } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
-import { Lock, Unlock, Users, Save, X, Sparkles, Upload, Image as ImageIcon, Filter, Globe } from 'lucide-react';
+import { Lock, Unlock, Users, Save, X, Sparkles, Upload, Image as ImageIcon, Filter, Globe, Armchair, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+
+interface SeatTier {
+  seats: number;
+  coins: number;
+  name_ar: string;
+  name_en: string;
+  enabled: boolean;
+}
+
+interface SeatUpgradeConfig {
+  enabled: boolean;
+  default_seats: number;
+  tiers: SeatTier[];
+}
+
+const defaultSeatUpgradeConfig: SeatUpgradeConfig = {
+  enabled: true,
+  default_seats: 10,
+  tiers: [
+    { seats: 10, coins: 0, name_ar: '10 مقاعد (افتراضي)', name_en: '10 Seats (Default)', enabled: true },
+    { seats: 12, coins: 5000, name_ar: '12 مقعد', name_en: '12 Seats', enabled: true },
+    { seats: 13, coins: 7500, name_ar: '13 مقعد', name_en: '13 Seats', enabled: true },
+    { seats: 15, coins: 10000, name_ar: '15 مقعد', name_en: '15 Seats', enabled: true },
+    { seats: 20, coins: 20000, name_ar: '20 مقعد', name_en: '20 Seats', enabled: true },
+  ],
+};
 
 const countryOptions = [
   { code: '', label: '🌍 الكل (All)' },
@@ -59,6 +85,62 @@ export default function RoomsPage() {
   const [blockUsers, setBlockUsers] = useState<Map<string, { name: string; custom_id: string }>>(new Map());
   const [loadingBlocks, setLoadingBlocks] = useState(false);
   const [countryFilter, setCountryFilter] = useState<string>('');
+
+  // إعدادات ترقية المقاعد وأسعارها بالعملات
+  const [seatConfig, setSeatConfig] = useState<SeatUpgradeConfig>(defaultSeatUpgradeConfig);
+  const [savingSeatConfig, setSavingSeatConfig] = useState(false);
+  const [showSeatSettings, setShowSeatSettings] = useState(false);
+
+  useEffect(() => {
+    getAppConfig<SeatUpgradeConfig>('room_seat_upgrade_config').then(cfg => {
+      if (cfg && Array.isArray(cfg.tiers)) {
+        setSeatConfig(cfg);
+      }
+    });
+  }, []);
+
+  const handleSaveSeatConfig = async () => {
+    setSavingSeatConfig(true);
+    try {
+      await updateAppConfig('room_seat_upgrade_config', seatConfig);
+      alert('تم حفظ إعدادات وأسعار ترقية المقاعد بنجاح!');
+    } catch (e) {
+      alert('فشل حفظ الإعدادات: ' + (e as Error).message);
+    } finally {
+      setSavingSeatConfig(false);
+    }
+  };
+
+  const handleAddTier = () => {
+    setSeatConfig(prev => ({
+      ...prev,
+      tiers: [
+        ...prev.tiers,
+        {
+          seats: (prev.tiers[prev.tiers.length - 1]?.seats || 10) + 2,
+          coins: 10000,
+          name_ar: 'مقاعد جديدة',
+          name_en: 'New Seats',
+          enabled: true,
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveTier = (index: number) => {
+    setSeatConfig(prev => ({
+      ...prev,
+      tiers: prev.tiers.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleUpdateTier = (index: number, field: keyof SeatTier, val: any) => {
+    setSeatConfig(prev => {
+      const copy = [...prev.tiers];
+      copy[index] = { ...copy[index], [field]: val };
+      return { ...prev, tiers: copy };
+    });
+  };
 
   const loadBlocks = async (roomId: string) => {
     setLoadingBlocks(true);
@@ -160,6 +242,17 @@ export default function RoomsPage() {
           <p className="text-slate-500 text-xs mt-0.5">{filteredRooms.length} / {rooms.length} غرفة</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSeatSettings(prev => !prev)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+              showSeatSettings
+                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                : 'bg-[#161618] border border-amber-500/30 text-amber-300 hover:bg-amber-500/10'
+            }`}
+          >
+            <Armchair className="w-3.5 h-3.5" />
+            إعدادات وأسعار ترقية المقاعد
+          </button>
           <div className="relative">
             <Globe className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <select
@@ -174,6 +267,156 @@ export default function RoomsPage() {
           </div>
         </div>
       </div>
+
+      {/* لوحة تحكم ترقية مقاعد الغرف وأسعارها بالعملات */}
+      {showSeatSettings && (
+        <div className="bg-[#141417] rounded-2xl border border-amber-500/30 p-5 space-y-4 shadow-xl shadow-black/40">
+          <div className="flex items-center justify-between flex-wrap gap-3 border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300">
+                <Armchair className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-white text-sm font-bold flex items-center gap-2">
+                  نظام ترقية مقاعد الغرف بالعملات
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                    Live Room Seat Pricing
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  حدد المقاعد الافتراضية للغرف الجديدة (10 مقاعد) وحدد سعر كل ترقية بالكوينز
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-white cursor-pointer bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">
+                <input
+                  type="checkbox"
+                  checked={seatConfig.enabled}
+                  onChange={e => setSeatConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                  className="accent-amber-500 w-4 h-4"
+                />
+                <span className="font-semibold">{seatConfig.enabled ? 'النظام مفعل' : 'النظام معطل'}</span>
+              </label>
+              <button
+                onClick={handleSaveSeatConfig}
+                disabled={savingSeatConfig}
+                className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 text-black font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {savingSeatConfig ? 'جارٍ الحفظ...' : 'حفظ الأسعار'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center bg-black/20 p-3 rounded-xl border border-white/5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                عدد المقاعد الافتراضي لجميع الغرف:
+              </label>
+              <input
+                type="number"
+                min={8}
+                max={20}
+                value={seatConfig.default_seats}
+                onChange={e => setSeatConfig(prev => ({ ...prev, default_seats: Number(e.target.value) }))}
+                className="w-full bg-[#161618] border border-amber-500/40 rounded-lg py-1.5 px-3 text-sm text-amber-300 font-bold"
+              />
+              <span className="text-[10px] text-slate-500">بداية الغرف بالكامل تبدأ بهذا العدد (10 مقاعد)</span>
+            </div>
+          </div>
+
+          {/* جدول باقات ومستويات المقاعد */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-200">مستويات وأسعار المقاعد (Tiers):</h4>
+              <button
+                type="button"
+                onClick={handleAddTier}
+                className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs rounded-lg flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3 h-3 text-amber-400" />
+                إضافة مستوى مقاعد
+              </button>
+            </div>
+
+            <div className="overflow-x-auto border border-white/10 rounded-xl">
+              <table className="w-full text-xs text-right">
+                <thead className="bg-[#1a1a1e] text-slate-400 font-bold border-b border-white/10">
+                  <tr>
+                    <th className="py-2.5 px-3">عدد المقاعد</th>
+                    <th className="py-2.5 px-3">السعر بالكوينز 🪙</th>
+                    <th className="py-2.5 px-3">الاسم بالعربية</th>
+                    <th className="py-2.5 px-3">الاسم بالإنجليزية</th>
+                    <th className="py-2.5 px-3 text-center">مفعل</th>
+                    <th className="py-2.5 px-3 text-center">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {seatConfig.tiers.map((tier, idx) => (
+                    <tr key={idx} className="hover:bg-white/5 transition-colors">
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            value={tier.seats}
+                            onChange={e => handleUpdateTier(idx, 'seats', Number(e.target.value))}
+                            className="w-20 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-amber-300 font-bold"
+                          />
+                          <span className="text-slate-500">مقعد</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          step={500}
+                          value={tier.coins}
+                          onChange={e => handleUpdateTier(idx, 'coins', Number(e.target.value))}
+                          className="w-28 bg-black/40 border border-amber-500/30 rounded px-2 py-1 text-xs text-amber-400 font-mono font-bold"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="text"
+                          value={tier.name_ar}
+                          onChange={e => handleUpdateTier(idx, 'name_ar', e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="text"
+                          value={tier.name_en}
+                          onChange={e => handleUpdateTier(idx, 'name_en', e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={tier.enabled}
+                          onChange={e => handleUpdateTier(idx, 'enabled', e.target.checked)}
+                          className="accent-amber-500"
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTier(idx)}
+                          className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded transition-colors"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div className="bg-[#141417] rounded-2xl border border-indigo-500/20 p-6 space-y-4">
@@ -262,6 +505,17 @@ export default function RoomsPage() {
             <div>
               <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">الحد الأقصى للأعضاء</label>
               <input type="number" value={editing.maxMembers} onChange={e => handleUpdate('maxMembers', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1">عدد مقاعد الغرفة (Seats)</label>
+              <input
+                type="number"
+                min={8}
+                max={20}
+                value={editing.seatCount || 10}
+                onChange={e => handleUpdate('seatCount', Number(e.target.value))}
+                className="w-full bg-[#161618] border border-amber-500/40 rounded-lg py-1.5 px-2 text-xs text-amber-300 font-bold"
+              />
             </div>
             <div>
               <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">كلمة المرور (إن وجدت)</label>
@@ -356,6 +610,16 @@ export default function RoomsPage() {
             )
           },
           { key: 'memberCount', label: 'الأعضاء', sortable: true, render: r => <span className="flex items-center gap-1"><Users className="w-3 h-3 text-slate-500" />{r.memberCount}/{r.maxMembers}</span> },
+          {
+            key: 'seatCount',
+            label: 'المقاعد',
+            sortable: true,
+            render: r => (
+              <span className="px-2 py-0.5 text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded font-bold flex items-center gap-1 w-fit">
+                <Armchair className="w-3 h-3 text-amber-400" /> {r.seatCount || 10}
+              </span>
+            ),
+          },
           { key: 'category', label: 'التصنيف', sortable: true },
           { key: 'country', label: 'الدولة', sortable: true, width: '60px', render: r => r.country ? <span className="text-xs font-mono uppercase">{r.country}</span> : <span className="text-slate-600 text-xs">—</span> },
           { key: 'isLocked', label: '', render: r => r.isLocked ? <Lock className="w-3 h-3 text-rose-400" /> : <Unlock className="w-3 h-3 text-emerald-400" /> },

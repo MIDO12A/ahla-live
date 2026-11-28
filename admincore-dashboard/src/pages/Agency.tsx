@@ -37,7 +37,7 @@ import { canUserAccess } from '../lib/permissions';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
 import {
-  Handshake, Users, UserPlus, Wallet, Target, Settings, Sparkles, Award,
+  Handshake, Users, UserPlus, Wallet, Target, Settings, MessageSquare, Sparkles, Award,
   Save, CheckCircle2, RefreshCw, ClipboardCheck, Plus, Trash2, Edit3,
   XCircle, Check, ShieldCheck, UserMinus, Eye, ExternalLink,
   ArrowRightLeft, RotateCcw, Coins, FileText, AlertTriangle,
@@ -135,6 +135,7 @@ const tabs = [
   { key: 'recharge_agencies', permKey: 'agency_recharge', label: 'وكالات الشحن والرواتب', labelKey: 'agency.rechargeAgencies', icon: Wallet },
   { key: 'agency_requests', permKey: 'agency_requests', label: 'طلبات فتح الوكالات', labelKey: 'agency.agencyRequests', icon: ClipboardCheck },
   { key: 'milestones', permKey: 'agency_milestones', label: 'المراحل والتارجت والرواتب', labelKey: 'agency.milestones', icon: Target },
+  { key: 'message_targets', permKey: 'agency_milestones', label: 'تارجت رسائل الشات والعمولة', labelKey: 'agency.messageTargets', icon: MessageSquare },
   { key: 'members', permKey: 'agency_members', label: 'أعضاء الوكالات', labelKey: 'agency.members', icon: Users },
   { key: 'necklaces', permKey: 'agency_necklaces', label: 'قلادات الوكالة SVGA', labelKey: 'agency.necklaces', icon: Sparkles },
   { key: 'join_requests', permKey: 'agency_join_requests', label: 'طلبات الانضمام', labelKey: 'agency.joinRequests', icon: UserPlus },
@@ -204,6 +205,7 @@ export default function AgencyPage() {
           {tab === 'join_requests' && canUserAccess(currentUser, 'agency_join_requests') && <JoinRequestsTab />}
           {tab === 'financial' && canUserAccess(currentUser, 'agency_financial') && <FinancialTab />}
           {tab === 'commission' && canUserAccess(currentUser, 'agency_commission') && <CommissionTab />}
+          {tab === 'message_targets' && <MessageTargetsTab />}
         </>
       )}
     </div>
@@ -422,8 +424,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
                 <div>
                   <div className="text-white font-bold text-xs">{ag.name}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded">كود: {ag.agency_code || (ag.id ? (100 + (Math.abs(ag.id.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0)) % 900)) : '---')}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">ID: {ag.id?.slice(0, 8)}</span>
+                    <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded">كود الوكالة: {ag.agency_code || (ag.id ? (100 + (Math.abs(ag.id.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0)) % 900)) : '100')}</span>
                   </div>
                 </div>
               </div>
@@ -3544,6 +3545,9 @@ function AgencyNecklacesTab() {
     hostNecklaceName: 'قلادة المضيف (Agency Host)',
     hostNecklaceImg: '',
     hostNecklaceSvga: '',
+    rechargeAgentNecklaceName: 'قلادة وكيل الشحن (Recharge Agent)',
+    rechargeAgentNecklaceImg: '',
+    rechargeAgentNecklaceSvga: '',
   });
 
   const showMsg = (txt: string) => {
@@ -3561,6 +3565,9 @@ function AgencyNecklacesTab() {
         hostNecklaceName: data.hostNecklaceName || 'قلادة المضيف (Agency Host)',
         hostNecklaceImg: data.hostNecklaceImg || '',
         hostNecklaceSvga: data.hostNecklaceSvga || '',
+        rechargeAgentNecklaceName: data.rechargeAgentNecklaceName || 'قلادة وكيل الشحن (Recharge Agent)',
+        rechargeAgentNecklaceImg: data.rechargeAgentNecklaceImg || '',
+        rechargeAgentNecklaceSvga: data.rechargeAgentNecklaceSvga || '',
       });
       setLoading(false);
     });
@@ -3590,34 +3597,42 @@ function AgencyNecklacesTab() {
   };
 
   const handleSyncToUsers = async () => {
-    if (!confirm('هل تريد مزامنة ومنح قلادات الوكالة (الوكيل والمضيف) لجميع أصحاب الوكالات والأعضاء الحاليين فوراً؟')) return;
+    if (!confirm('هل تريد مزامنة ومنح قلادات الوكالة (الوكيل، المضيف، ووكيل الشحن) للمستخدمين المستحقين فوراً؟\nملاحظة: قلادة المضيف لن تُمنح لأصحاب الوكالات بتاتاً.')) return;
     setSyncing(true);
     try {
       // 1. Get all agencies & their owners
       const agencies = await getHostAgencies();
+      const ownerIds = new Set<string>();
       let syncedOwners = 0;
       let syncedHosts = 0;
+      let syncedRecharge = 0;
 
       for (const agency of agencies) {
         if (agency.owner_id) {
-          // Grant agency leader necklace to owner
+          ownerIds.add(agency.owner_id);
+          // Grant agency leader necklace to owner and REMOVE agency_host_necklace if present!
           const { data: user } = await supabase.from('users').select('owned_necklaces').eq('id', agency.owner_id).single();
-          const owned = Array.isArray(user?.owned_necklaces) ? user.owned_necklaces : [];
+          let owned: string[] = Array.isArray(user?.owned_necklaces) ? [...user.owned_necklaces] : [];
+          const hadHostNecklace = owned.includes('agency_host_necklace');
+          owned = owned.filter(n => n !== 'agency_host_necklace');
           if (!owned.includes('agency_leader_necklace')) {
+            owned.push('agency_leader_necklace');
+          }
+          if (hadHostNecklace || !user?.owned_necklaces?.includes('agency_leader_necklace')) {
             await supabase.from('users').update({
-              owned_necklaces: [...owned, 'agency_leader_necklace']
+              owned_necklaces: owned
             }).eq('id', agency.owner_id);
             syncedOwners++;
           }
         }
       }
 
-      // 2. Get all agency members
+      // 2. Get all agency members (ONLY non-owners receive agency_host_necklace)
       const members = await getHostAgencyMembers();
       for (const m of members) {
-        if (m.user_id) {
+        if (m.user_id && !ownerIds.has(m.user_id)) {
           const { data: user } = await supabase.from('users').select('owned_necklaces').eq('id', m.user_id).single();
-          const owned = Array.isArray(user?.owned_necklaces) ? user.owned_necklaces : [];
+          const owned: string[] = Array.isArray(user?.owned_necklaces) ? user.owned_necklaces : [];
           if (!owned.includes('agency_host_necklace')) {
             await supabase.from('users').update({
               owned_necklaces: [...owned, 'agency_host_necklace']
@@ -3627,7 +3642,27 @@ function AgencyNecklacesTab() {
         }
       }
 
-      showMsg(`تمت المزامنة بنجاح! تم تعيين القلادات لـ ${syncedOwners} رئيس وكالة و ${syncedHosts} مضيف وكالة.`);
+      // 3. Get all recharge agents and grant recharge_agent_necklace
+      const { data: rechargeAgents } = await supabase
+        .from('users')
+        .select('id, owned_necklaces')
+        .or('is_recharge_agent.eq.true,role.eq.recharge_agent');
+
+      if (rechargeAgents && Array.isArray(rechargeAgents)) {
+        for (const ra of rechargeAgents) {
+          if (ra.id) {
+            const owned: string[] = Array.isArray(ra.owned_necklaces) ? ra.owned_necklaces : [];
+            if (!owned.includes('recharge_agent_necklace')) {
+              await supabase.from('users').update({
+                owned_necklaces: [...owned, 'recharge_agent_necklace']
+              }).eq('id', ra.id);
+              syncedRecharge++;
+            }
+          }
+        }
+      }
+
+      showMsg(`تمت المزامنة بنجاح! تم تعيين القلادات لـ ${syncedOwners} رئيس وكالة، ${syncedHosts} مضيف وكالة، و ${syncedRecharge} وكيل شحن.`);
     } catch (err) {
       showMsg('فشل المزامنة: ' + (err as Error).message);
     }
@@ -3654,11 +3689,11 @@ function AgencyNecklacesTab() {
           نظام قلادات وشارات الوكالات الحصرية (SVGA)
         </h3>
         <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-          هنا يمكنك تعيين وتصميم قلادة الوكيل الحصرية (لأصحاب الوكالات) وقلادة المضيف الحصرية (للأعضاء المنضمين للوكالات). يتم عرض هذه القلادات كرسوم متحركة SVGA فائقة الجودة في وسم الهوية والبروفايل.
+          هنا يمكنك تعيين وتصميم قلادة الوكيل الحصرية (لأصحاب الوكالات فقط)، قلادة المضيف الحصرية (للأعضاء المنضمين للوكالات فقط دون أصحاب الوكالات)، وقلادة وكيل الشحن الحصرية (لوكيل الشحن فقط). يتم عرض هذه القلادات كرسوم متحركة SVGA فائقة الجودة في وسم الهوية والبروفايل.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* 1. Agency Leader / Owner Necklace */}
         <div className="bg-[#141417] rounded-2xl border border-amber-500/20 p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-white/5 pb-3">
@@ -3705,7 +3740,7 @@ function AgencyNecklacesTab() {
               <span>🎙️</span> قلادة مضيف الوكالة (Agency Host Member)
             </h4>
             <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded-full">
-              للمضيفين فقط
+              للمضيفين فقط (لا تُمنح للوكيل)
             </span>
           </div>
 
@@ -3736,6 +3771,45 @@ function AgencyNecklacesTab() {
             />
           </div>
         </div>
+
+        {/* 3. Recharge Agent Necklace */}
+        <div className="bg-[#141417] rounded-2xl border border-cyan-500/20 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <h4 className="text-white font-bold text-sm flex items-center gap-2">
+              <span>⚡</span> قلادة وكيل الشحن (Recharge Agent Necklace)
+            </h4>
+            <span className="text-[10px] bg-cyan-500/20 text-cyan-300 font-bold px-2 py-0.5 rounded-full">
+              خاص بوكيل الشحن فقط
+            </span>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase text-slate-400 font-bold">اسم القلادة</label>
+            <input
+              type="text"
+              value={config.rechargeAgentNecklaceName || ''}
+              onChange={e => setConfig(p => ({ ...p, rechargeAgentNecklaceName: e.target.value }))}
+              className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <ImageUpload
+              currentUrl={config.rechargeAgentNecklaceSvga}
+              onUpload={file => uploadStoreItem(file, 'agency_recharge_svga')}
+              onUrlChange={url => setConfig(p => ({ ...p, rechargeAgentNecklaceSvga: url }))}
+              label="ملف قلادة وكيل الشحن (SVGA متحرك)"
+              accept=".svga,.webp,.png,.mp4,.vap"
+            />
+            <ImageUpload
+              currentUrl={config.rechargeAgentNecklaceImg}
+              onUpload={file => uploadStoreItem(file, 'agency_recharge_img')}
+              onUrlChange={url => setConfig(p => ({ ...p, rechargeAgentNecklaceImg: url }))}
+              label="صورة المعاينة الثابتة (PNG / WebP)"
+              accept="image/*"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Action Buttons */}
@@ -3755,7 +3829,7 @@ function AgencyNecklacesTab() {
           className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-xs text-white font-bold rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-900/30"
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'جارٍ المزامنة...' : '⚡ مزامنة القلادات لجميع أصحاب الوكالات والمضيفين الآن'}
+          {syncing ? 'جارٍ المزامنة...' : '⚡ مزامنة القلادات للمستحقين (وكلاء، مضيفين، وكلاء شحن)'}
         </button>
       </div>
     </div>
@@ -5445,3 +5519,316 @@ function AgencyLevelsTab() {
   );
 }
 
+
+
+// ─── تبويب تارجت رسائل الشات الخاصة وعمولة الوكيل ──────────────────────────────
+function MessageTargetsTab() {
+  const [config, setConfig] = useState({
+    male_to_female_coins: 10,
+    female_receive_diamonds: 3,
+    agency_commission_pct: 10,
+    free_if_female_follows: true,
+    reply_timeout_minutes: 60,
+  });
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  const [targets, setTargets] = useState<any[]>([]);
+  const [loadingTargets, setLoadingTargets] = useState(true);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDiamonds, setNewDiamonds] = useState(1000);
+  const [newRewardCoins, setNewRewardCoins] = useState(100);
+  const [newRewardDiamonds, setNewRewardDiamonds] = useState(50);
+  const [savingTarget, setSavingTarget] = useState(false);
+
+  useEffect(() => {
+    loadPricingConfig();
+    loadTargets();
+  }, []);
+
+  const loadPricingConfig = async () => {
+    setLoadingConfig(true);
+    try {
+      const { data, error } = await supabase.from('chat_message_pricing_config').select('*').eq('id', 1).maybeSingle();
+      if (data) {
+        setConfig({
+          male_to_female_coins: Number(data.male_to_female_coins) || 10,
+          female_receive_diamonds: Number(data.female_receive_diamonds) || 3,
+          agency_commission_pct: Number(data.agency_commission_pct) || 10,
+          free_if_female_follows: data.free_if_female_follows !== false,
+          reply_timeout_minutes: Number(data.reply_timeout_minutes) || 60,
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingConfig(false);
+  };
+
+  const savePricingConfig = async () => {
+    setSavingConfig(true);
+    try {
+      const { error } = await supabase.from('chat_message_pricing_config').upsert({
+        id: 1,
+        male_to_female_coins: config.male_to_female_coins,
+        female_receive_diamonds: config.female_receive_diamonds,
+        agency_commission_pct: config.agency_commission_pct,
+        free_if_female_follows: config.free_if_female_follows,
+        reply_timeout_minutes: config.reply_timeout_minutes,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      alert('تم حفظ إعدادات تسعير الرسائل وعمولة الوكيل بنجاح! ✅');
+    } catch (e: any) {
+      alert('فشل الحفظ: ' + e.message);
+    }
+    setSavingConfig(false);
+  };
+
+  const loadTargets = async () => {
+    setLoadingTargets(true);
+    try {
+      const { data } = await supabase.from('agency_message_targets').select('*').order('level_order');
+      if (data) setTargets(data);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingTargets(false);
+  };
+
+  const handleAddTarget = async () => {
+    if (!newTitle.trim()) {
+      alert('يرجى إدخال عنوان المرحلة');
+      return;
+    }
+    setSavingTarget(true);
+    try {
+      const nextOrder = targets.length > 0 ? Math.max(...targets.map(t => t.level_order || 1)) + 1 : 1;
+      const { error } = await supabase.from('agency_message_targets').insert({
+        level_order: nextOrder,
+        title: newTitle.trim(),
+        target_diamonds: newDiamonds,
+        reward_coins: newRewardCoins,
+        reward_diamonds: newRewardDiamonds,
+      });
+      if (error) throw error;
+      setNewTitle('');
+      loadTargets();
+    } catch (e: any) {
+      alert('فشل إضافة المرحلة: ' + e.message);
+    }
+    setSavingTarget(false);
+  };
+
+  const handleDeleteTarget = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذه المرحلة؟')) return;
+    try {
+      await supabase.from('agency_message_targets').delete().eq('id', id);
+      loadTargets();
+    } catch (e: any) {
+      alert('فشل الحذف: ' + e.message);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* قسم تسعير الرسائل وعمولة الوكيل */}
+      <div className="bg-[#121214] border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-pink-500/10 text-pink-400">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white">إعدادات رسائل الشات الخاصة وعمولة الوكيل</h2>
+              <p className="text-xs text-slate-400 mt-0.5">التحكم في سعر الرسالة من الشاب للبنت، والماس الممنوح، وعمولة الوكيل</p>
+            </div>
+          </div>
+          <button
+            onClick={savePricingConfig}
+            disabled={savingConfig}
+            className="flex items-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-pink-500/20 transition-all disabled:opacity-50"
+          >
+            {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>حفظ الإعدادات</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+            <label className="text-[11px] text-slate-400 block mb-1">تكلفة رسالة الشاب (كوينز) 🪙</label>
+            <input
+              type="number"
+              value={config.male_to_female_coins}
+              onChange={e => setConfig({ ...config, male_to_female_coins: parseInt(e.target.value) || 0 })}
+              className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-2 text-amber-400 font-bold text-sm focus:outline-none focus:border-pink-500"
+            />
+            <span className="text-[10px] text-slate-500 mt-1 block">يتم خصمها من رصيد الشاب</span>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+            <label className="text-[11px] text-slate-400 block mb-1">الماس الذي تستلمه البنت 💎</label>
+            <input
+              type="number"
+              value={config.female_receive_diamonds}
+              onChange={e => setConfig({ ...config, female_receive_diamonds: parseInt(e.target.value) || 0 })}
+              className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-2 text-cyan-400 font-bold text-sm focus:outline-none focus:border-pink-500"
+            />
+            <span className="text-[10px] text-slate-500 mt-1 block">يدخل في محفظتها وتارجت الرسائل</span>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+            <label className="text-[11px] text-slate-400 block mb-1">عمولة الوكيل من تارجت الرسائل (%) 💼</label>
+            <input
+              type="number"
+              value={config.agency_commission_pct}
+              onChange={e => setConfig({ ...config, agency_commission_pct: parseFloat(e.target.value) || 0 })}
+              className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-2 text-emerald-400 font-bold text-sm focus:outline-none focus:border-pink-500"
+            />
+            <span className="text-[10px] text-slate-500 mt-1 block">تضاف في عمولة الوكالة المعلقة للوكيل</span>
+          </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+            <label className="text-[11px] text-slate-400 block mb-1">مهلة رد البنت (بالدقائق) ⏳</label>
+            <input
+              type="number"
+              value={config.reply_timeout_minutes}
+              onChange={e => setConfig({ ...config, reply_timeout_minutes: parseInt(e.target.value) || 0 })}
+              className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-2 text-rose-400 font-bold text-sm focus:outline-none focus:border-pink-500"
+            />
+            <span className="text-[10px] text-slate-500 mt-1 block">إذا لم ترد، ترجع العملات للشاب ويخصم الماس</span>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col justify-between">
+            <label className="text-[11px] text-slate-400 block mb-1">استثناء المتابعة 👥</label>
+            <label className="flex items-center gap-2 cursor-pointer mt-2">
+              <input
+                type="checkbox"
+                checked={config.free_if_female_follows}
+                onChange={e => setConfig({ ...config, free_if_female_follows: e.target.checked })}
+                className="w-4 h-4 accent-pink-500 rounded cursor-pointer"
+              />
+              <span className="text-xs text-white font-medium">مجاني إذا كانت البنت تتابع الشاب</span>
+            </label>
+            <span className="text-[10px] text-slate-500 mt-1 block">لا يتم خصم كوينز إذا تابعته</span>
+          </div>
+        </div>
+      </div>
+
+      {/* قسم مراحل تارجت رسائل الشات */}
+      <div className="bg-[#121214] border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white">مراحل تارجت رسائل الشات للبنات في الوكالة</h2>
+              <p className="text-xs text-slate-400 mt-0.5">مراحل منفصلة تماماً تظهر في كرت مخصص للبنت داخل الوكالة</p>
+            </div>
+          </div>
+        </div>
+
+        {/* نموذج إضافة مرحلة جديدة */}
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+          <h3 className="text-xs font-bold text-white mb-3 flex items-center gap-1.5">
+            <Plus className="w-4 h-4 text-pink-400" />
+            <span>إضافة مرحلة تارجت جديدة</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">اسم المرحلة</label>
+              <input
+                type="text"
+                placeholder="مثال: المرحلة 1 (فضي رسائل)"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">الماس المطلوب (تارجت الرسائل) 💎</label>
+              <input
+                type="number"
+                value={newDiamonds}
+                onChange={e => setNewDiamonds(parseInt(e.target.value) || 0)}
+                className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-cyan-400 font-bold focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">مكافأة كوينز للبنت 🪙</label>
+              <input
+                type="number"
+                value={newRewardCoins}
+                onChange={e => setNewRewardCoins(parseInt(e.target.value) || 0)}
+                className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-amber-400 font-bold focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">مكافأة ماس للبنت 💎</label>
+              <input
+                type="number"
+                value={newRewardDiamonds}
+                onChange={e => setNewRewardDiamonds(parseInt(e.target.value) || 0)}
+                className="w-full bg-[#18181b] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-pink-500"
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={handleAddTarget}
+              disabled={savingTarget}
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all"
+            >
+              + إضافة المرحلة
+            </button>
+          </div>
+        </div>
+
+        {/* قائمة المراحل المضافة */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead>
+              <tr className="border-b border-white/10 text-[11px] text-slate-400">
+                <th className="py-2 px-3">الترتيب</th>
+                <th className="py-2 px-3">المرحلة</th>
+                <th className="py-2 px-3">الماس المستهدف 💎</th>
+                <th className="py-2 px-3">مكافأة كوينز 🪙</th>
+                <th className="py-2 px-3">مكافأة ماس 💎</th>
+                <th className="py-2 px-3 text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {targets.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-slate-500">
+                    لا توجد مراحل تارجت مضافة حتى الآن.
+                  </td>
+                </tr>
+              ) : (
+                targets.map((t, idx) => (
+                  <tr key={t.id || idx} className="border-b border-white/5 hover:bg-white/[0.02] text-xs text-white">
+                    <td className="py-2.5 px-3 font-bold text-slate-400">#{t.level_order || idx + 1}</td>
+                    <td className="py-2.5 px-3 font-bold text-pink-400">{t.title}</td>
+                    <td className="py-2.5 px-3 font-bold text-cyan-400">{t.target_diamonds?.toLocaleString()} 💎</td>
+                    <td className="py-2.5 px-3 font-bold text-amber-400">+{t.reward_coins?.toLocaleString()} 🪙</td>
+                    <td className="py-2.5 px-3 font-bold text-emerald-400">+{t.reward_diamonds?.toLocaleString()} 💎</td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        onClick={() => handleDeleteTarget(t.id)}
+                        className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
+                        title="حذف المرحلة"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

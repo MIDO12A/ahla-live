@@ -1,5 +1,31 @@
-// Uploads go to Cloudinary (same account + preset as the Flutter app).
-// The returned URL is a secure_url that the app reads normally via R.cachedImage().
+import { supabase } from './supabase';
+
+// Uploads support Supabase Storage and Cloudinary.
+// Default provider is Supabase Storage ('avatars' bucket).
+// Configurable dynamically via localStorage and app_config.storage_provider.
+
+export type StorageProvider = 'supabase' | 'cloudinary';
+
+export function getActiveStorageProvider(): StorageProvider {
+  try {
+    const saved = localStorage.getItem('active_storage_provider');
+    if (saved === 'cloudinary' || saved === 'supabase') return saved;
+  } catch {}
+  return 'supabase';
+}
+
+export async function setActiveStorageProvider(provider: StorageProvider): Promise<void> {
+  try {
+    localStorage.setItem('active_storage_provider', provider);
+    await supabase.from('app_config').upsert({
+      key: 'storage_provider',
+      value: provider,
+      updated_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Failed to persist active storage provider:', err);
+  }
+}
 
 const CLOUD_NAME = 'r5kohqhd';
 // Uploads are unsigned (upload_preset only) — no API secret is needed or stored.
@@ -218,16 +244,69 @@ async function uploadToCloudinarySigned(
   return xhrPostForm(cloudinaryUploadUrl(cfg.cloudName, resourceType), form, onProgress);
 }
 
+export async function uploadToSupabaseStorage(
+  file: File,
+  folder: string,
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  const dotIndex = file.name.lastIndexOf('.');
+  const ext = dotIndex >= 0 ? file.name.substring(dotIndex) : '';
+  const nameWithoutExt = dotIndex > 0 ? file.name.substring(0, dotIndex) : file.name;
+  const cleanName = nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const path = `${folder}/${Date.now()}_${cleanName}${ext}`;
+
+  if (onProgress) onProgress(30);
+
+  const { data, error } = await supabase.storage.from('avatars').upload(path, file, {
+    cacheControl: '3600',
+    upsert: true,
+    contentType: file.type || undefined,
+  });
+
+  if (error) {
+    throw new Error(`Supabase Storage upload failed: ${error.message}`);
+  }
+
+  if (onProgress) onProgress(100);
+  const { data: pubData } = supabase.storage.from('avatars').getPublicUrl(data.path);
+  return pubData.publicUrl;
+}
+
 async function uploadAny(file: File, folder: string, onProgress?: (pct: number) => void): Promise<string> {
-  try {
-    return await uploadToCloudinaryUnsigned(file, folder, onProgress);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (/whitelisted|upload preset/i.test(msg)) {
-      // Preset is Signed-mode → retry with a signed request.
-      return uploadToCloudinarySigned(file, folder, onProgress);
+  const provider = getActiveStorageProvider();
+
+  if (provider === 'supabase') {
+    try {
+      return await uploadToSupabaseStorage(file, folder, onProgress);
+    } catch (supaErr) {
+      console.warn('Supabase upload failed, falling back to Cloudinary:', supaErr);
+      try {
+        return await uploadToCloudinaryUnsigned(file, folder, onProgress);
+      } catch (cloudErr) {
+        const msg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
+        if (/whitelisted|upload preset/i.test(msg)) {
+          return await uploadToCloudinarySigned(file, folder, onProgress);
+        }
+        throw supaErr;
+      }
     }
-    throw e;
+  } else {
+    // Cloudinary preferred
+    try {
+      return await uploadToCloudinaryUnsigned(file, folder, onProgress);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/whitelisted|upload preset/i.test(msg)) {
+        try {
+          return await uploadToCloudinarySigned(file, folder, onProgress);
+        } catch (signedErr) {
+          console.warn('Cloudinary signed upload failed, falling back to Supabase:', signedErr);
+          return await uploadToSupabaseStorage(file, folder, onProgress);
+        }
+      }
+      console.warn('Cloudinary upload failed, falling back to Supabase:', e);
+      return await uploadToSupabaseStorage(file, folder, onProgress);
+    }
   }
 }
 

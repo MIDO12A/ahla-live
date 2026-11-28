@@ -4,8 +4,11 @@ import { getGifts, getGiftCategories, deleteGift, updateGift, addGift } from '..
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
-import { Plus, Save, X, Sparkles, Gift } from 'lucide-react';
+import { Plus, Save, X, Sparkles, Gift, Tag } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import GiftNavTabs from '../components/GiftNavTabs';
 import { I18nContext } from '../lib/i18n';
+import { mergeGiftCategories } from '../lib/giftCategories';
 
 export default function GiftsPage() {
   const [gifts, setGifts] = useState<GiftModel[]>([]);
@@ -35,9 +38,10 @@ export default function GiftsPage() {
 
   const load = async () => {
     const [d, cats] = await Promise.all([getGifts(), getGiftCategories()]);
-    // ما نعيدش إنشاء التصنيفات القياسية هنا — ده كان يرجّع التصنيف اللي
-    // المستخدم حذفه فور ما يفتح صفحة الهدايا، فيبدو كأن الحذف ما حصلش.
-    const mergedCats = [...cats].sort((a, b) => a.sortOrder - b.sortOrder);
+    // ✅ نفس مصدر تصنيفات صفحة «تصنيفات الهدايا» — الأقسام الأساسية تظهر
+    //    هنا أيضاً في التبويبات وقائمة اختيار التصنيف عند إضافة هدية.
+    //    صفوف قاعدة البيانات تتفوق في الاسم/الترتيب/الظهور (isActive).
+    const mergedCats = mergeGiftCategories(cats);
     setActiveTab(prev =>
       prev !== 'all' && !mergedCats.some(c => c.id === prev) ? 'all' : prev,
     );
@@ -46,13 +50,13 @@ export default function GiftsPage() {
   useEffect(() => { load(); }, []);
 
   const resetForm = (targetCatId?: string) => {
-    const cat = targetCatId || (activeTab !== 'all' ? activeTab : 'normal');
+    const cat = targetCatId || (activeTab !== 'all' ? activeTab : 'general');
     let type = 1;
     let isLucky = false;
     let isVap = false;
     let isCp = false;
-    if (cat === 'lucky') { type = 3; isLucky = true; }
-    else if (cat === 'luxury') { type = 2; isVap = true; }
+    if (isLuckyCategoryId(cat)) { type = 3; isLucky = true; }
+    else if (cat === 'luxury' || cat === 'celebrity') { type = 2; isVap = true; }
     else if (cat === 'cp') { type = 5; isCp = true; }
     else if (cat === 'backpack') { type = 4; }
 
@@ -81,7 +85,7 @@ export default function GiftsPage() {
       value: g.value,
       iconAsset: g.iconAsset,
       animationAsset: g.animationAsset || '',
-      type: g.type ?? 1,
+      type: (g as any).type ?? 1,
       isVap: g.isVap,
       isLucky: g.isLucky,
       isStar: g.isStar,
@@ -124,8 +128,10 @@ export default function GiftsPage() {
       defaultImage: form.defaultImage || null,
       default_image: form.defaultImage || null,
     });
+    const savedCat = form.categoryId || (form.isLucky ? 'lucky' : 'all');
     setEditing(null);
-    resetForm();
+    setActiveTab(savedCat);
+    resetForm(savedCat === 'all' ? undefined : savedCat);
     load();
   };
 
@@ -149,8 +155,10 @@ export default function GiftsPage() {
       defaultImage: form.defaultImage || null,
       default_image: form.defaultImage || null,
     });
+    const savedCat = form.categoryId || (form.isLucky ? 'lucky' : 'all');
     setShowAdd(false);
-    resetForm();
+    setActiveTab(savedCat);
+    resetForm(savedCat === 'all' ? undefined : savedCat);
     load();
   };
 
@@ -161,42 +169,53 @@ export default function GiftsPage() {
 
   const updateField = (field: string, value: unknown) => setForm(p => ({ ...p, [field]: value }));
 
-  const handleTypeChange = (typeVal: number) => {
+  // ✅ التصنيف المعتمد هو category_id من جدول gift_categories —
+  //    والـ type الرقمي (1-5) قيمة قديمة للأنواع القياسية فقط.
+  const catIdForType = (t?: number) =>
+    t === 3 ? 'lucky' : t === 2 ? 'celebrity' : t === 5 ? 'cp' : t === 4 ? 'backpack' : 'general';
+
+  // ✅ القسم «حظ» = التصنيف القياسي lucky أو أي تصنيف مخصص معلّم isLucky
+  //    من صفحة Gift Categories — كده اختيار أي قسم حظ بيحافظ على نوع الهدية.
+  const isLuckyCategoryId = (catId?: string | null) => {
+    if (!catId) return false;
+    if (catId === 'lucky') return true;
+    return categories.find(c => c.id === catId)?.isLucky === true;
+  };
+
+  const giftMatchesTab = (g: GiftModel, cat: GiftCategory): boolean => {
+    const gType = (g as any).type;
+    if (cat.isLucky || cat.id === 'lucky') {
+      return g.isLucky || gType === 3 || g.categoryId === cat.id || g.categoryId === 'lucky';
+    }
+    if (cat.id === 'celebrity' || cat.id === 'luxury') {
+      return !g.isLucky && (g.categoryId === 'celebrity' || g.categoryId === 'luxury' || gType === 2 || g.categoryId === cat.id);
+    }
+    if (cat.id === 'cp') return !g.isLucky && (g.isCpGift || g.categoryId === 'cp' || gType === 5 || g.categoryId === cat.id);
+    if (cat.id === 'backpack') return !g.isLucky && (g.categoryId === 'backpack' || gType === 4 || g.categoryId === cat.id);
+    if (cat.id === 'general' || cat.id === 'normal') {
+      if (g.isLucky || g.isCpGift || gType === 2 || gType === 3 || gType === 4 || gType === 5) return false;
+      return g.categoryId === 'general' || g.categoryId === 'normal' || g.categoryId === cat.id || !g.categoryId || gType === 1 || !gType;
+    }
+    return g.categoryId === cat.id;
+  };
+
+  const applyCategoryId = (catId: string) => {
     setForm(prev => {
-      let catId = prev.categoryId;
-      let isLucky = prev.isLucky;
-      let isVap = prev.isVap;
-      let isCp = prev.isCpGift;
-      if (typeVal === 3) {
-        catId = 'lucky';
-        isLucky = true;
-        isVap = false;
-        isCp = false;
-      } else if (typeVal === 2) {
-        catId = 'luxury';
-        isVap = true;
-        isLucky = false;
-        isCp = false;
-      } else if (typeVal === 5) {
-        catId = 'cp';
-        isCp = true;
-        isLucky = false;
-        isVap = false;
-      } else if (typeVal === 4) {
-        catId = 'backpack';
-        isLucky = false;
-      } else if (typeVal === 1) {
-        if (['lucky', 'luxury', 'cp', 'backpack'].includes(catId)) catId = 'normal';
-        isLucky = false;
-        isVap = false;
-        isCp = false;
-      }
-      return { ...prev, type: typeVal, categoryId: catId, isLucky, isVap, isCpGift: isCp };
+      let type = 1;
+      let isLucky = false;
+      let isVap = false;
+      let isCp = false;
+      if (isLuckyCategoryId(catId)) { type = 3; isLucky = true; }
+      else if (catId === 'celebrity' || catId === 'luxury') { type = 2; isVap = true; }
+      else if (catId === 'cp') { type = 5; isCp = true; }
+      else if (catId === 'backpack') { type = 4; }
+      return { ...prev, categoryId: catId, type, isLucky, isVap, isCpGift: isCp };
     });
   };
 
   return (
     <div className="space-y-6">
+      <GiftNavTabs />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-white text-lg font-semibold">{t('gift.management')}</h2>
@@ -234,33 +253,9 @@ export default function GiftsPage() {
               </div>
             ))}
             <div>
-              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Type (نوع الهدية)</label>
-              <select value={form.type ?? 1} onChange={e => handleTypeChange(Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
-                <option value="1">1: عادي (Normal)</option>
-                <option value="2">2: فاخر/VIP (Luxury)</option>
-                <option value="3">3: حظ (Lucky)</option>
-                <option value="4">4: حقيبة (Backpack)</option>
-                <option value="5">5: CP (Couple)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Category (القسم)</label>
-              <select value={form.categoryId} onChange={e => {
-                const val = e.target.value;
-                setForm(prev => {
-                  let type = prev.type;
-                  let isLucky = prev.isLucky;
-                  let isVap = prev.isVap;
-                  let isCp = prev.isCpGift;
-                  if (val === 'lucky') { type = 3; isLucky = true; isVap = false; isCp = false; }
-                  else if (val === 'luxury') { type = 2; isVap = true; isLucky = false; isCp = false; }
-                  else if (val === 'cp') { type = 5; isCp = true; isLucky = false; isVap = false; }
-                  else if (val === 'backpack') { type = 4; isLucky = false; }
-                  else if (val === 'normal') { type = 1; isLucky = false; isVap = false; isCp = false; }
-                  return { ...prev, categoryId: val, type, isLucky, isVap, isCpGift: isCp };
-                });
-              }} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
-                <option value="">-- No category --</option>
+              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">القسم / التاب (Category / Tab)</label>
+              <select value={form.categoryId || catIdForType(form.type)} onChange={e => applyCategoryId(e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
+                <option value="">-- بدون قسم (عام) --</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
@@ -304,8 +299,18 @@ export default function GiftsPage() {
           <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-white/5">
             <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${form.isLucky ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}>
               <input type="checkbox" checked={form.isLucky} onChange={e => {
+                // ✅ الهدية الحظ لازم تروح لقسم lucky عشان تظهر في تاب الحظ
+                //    في اللوحة وفي التطبيق — كان بيغيّر نوعها بس والقسم يفضل
+                //    «عام» فالتاب بيفضي ويرجع لأول تاب.
                 const chk = e.target.checked;
-                handleTypeChange(chk ? 3 : 1);
+                setForm(prev => ({
+                  ...prev,
+                  isLucky: chk,
+                  type: chk ? 3 : (prev.type === 3 ? 1 : prev.type),
+                  categoryId: chk
+                    ? 'lucky'
+                    : (prev.categoryId === 'lucky' ? 'general' : prev.categoryId),
+                }));
               }} className="accent-emerald-500 w-4 h-4" />
               <span>🍀 هدية حظ (Lucky Gift)</span>
             </label>
@@ -351,7 +356,11 @@ export default function GiftsPage() {
             <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${form.isVap ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}>
               <input type="checkbox" checked={form.isVap} onChange={e => {
                 const chk = e.target.checked;
-                handleTypeChange(chk ? 2 : 1);
+                setForm(prev => ({
+                  ...prev,
+                  isVap: chk,
+                  type: chk ? 2 : (prev.type === 2 ? 1 : prev.type),
+                }));
               }} className="accent-purple-500 w-4 h-4" />
               <span>🎬 تأثير VAP (Alpha MP4)</span>
             </label>
@@ -366,7 +375,11 @@ export default function GiftsPage() {
             <label className="flex items-center gap-1.5 text-xs text-rose-400 font-semibold cursor-pointer">
               <input type="checkbox" checked={form.isCpGift} onChange={e => {
                 const chk = e.target.checked;
-                handleTypeChange(chk ? 5 : 1);
+                setForm(prev => ({
+                  ...prev,
+                  isCpGift: chk,
+                  type: chk ? 5 : (prev.type === 5 ? 1 : prev.type),
+                }));
               }} className="accent-rose-500" />
               CP Gift
             </label>
@@ -402,22 +415,8 @@ export default function GiftsPage() {
         </button>
 
         {categories.map(cat => {
-          const isLuckyTab = cat.id === 'lucky';
-          const isNormalTab = cat.id === 'normal';
-          const isLuxuryTab = cat.id === 'luxury';
-          const isCpTab = cat.id === 'cp';
-          const isBackpackTab = cat.id === 'backpack';
-
-          const count = gifts.filter(g => {
-            if (isLuckyTab) return g.isLucky || g.type === 3 || g.categoryId === 'lucky';
-            if (isNormalTab) return g.categoryId === 'normal' || (!g.isLucky && !g.isCpGift && (g.type === 1 || !g.type));
-            if (isLuxuryTab) return g.categoryId === 'luxury' || g.type === 2;
-            if (isCpTab) return g.isCpGift || g.categoryId === 'cp' || g.type === 5;
-            if (isBackpackTab) return g.categoryId === 'backpack' || g.type === 4;
-            return g.categoryId === cat.id;
-          }).length;
-
           const isActive = activeTab === cat.id;
+          const count = gifts.filter(g => giftMatchesTab(g, cat)).length;
 
           return (
             <button
@@ -425,11 +424,11 @@ export default function GiftsPage() {
               onClick={() => setActiveTab(cat.id)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 isActive
-                  ? isLuckyTab
+                  ? cat.isLucky || cat.id === 'lucky'
                     ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                    : isCpTab
+                    : cat.id === 'cp'
                     ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
-                    : isLuxuryTab
+                    : cat.id === 'luxury'
                     ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
                     : 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
@@ -442,13 +441,25 @@ export default function GiftsPage() {
             </button>
           );
         })}
+        <Link
+          to="/gift-categories"
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 border border-indigo-500/20 transition-all flex items-center gap-1.5 ml-auto"
+          title="إدارة وتعديل وإضافة تصنيفات وأقسام الهدايا"
+        >
+          <Tag className="w-3.5 h-3.5" />
+          <span>إدارة التصنيفات</span>
+        </Link>
       </div>
 
       <DataTable
         loading={loading}
         columns={[
           { key: 'iconAsset', label: '', width: '40px', render: g => g.iconAsset ? <img src={g.iconAsset} className="w-6 h-6 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <div className="w-6 h-6 rounded bg-slate-800" /> },
-          { key: 'name', label: t('gift.name'), sortable: true },
+          { key: 'name', label: t('gift.name'), sortable: true, render: g => {
+              const n = String(g.name || (g as any).nameAr || (g as any).name_ar || '').trim()
+              const readable = n && n !== 'null' && !/^[0-9a-f]{8}-/i.test(n) && !/^[a-z]+_\d+$/.test(n)
+              return <span className={readable ? '' : 'text-slate-500 italic'}>{readable ? n : '—'}</span>
+            } },
           { key: 'categoryId', label: 'Category', render: g => { const cat = categories.find(c => c.id === g.categoryId); return <span className="text-[10px] text-slate-400">{cat ? cat.name : '-'}</span>; } },
           { key: 'value', label: t('gift.value'), sortable: true, render: g => <span className="text-amber-400 font-mono">{g.value}</span> },
           { key: 'isLucky', label: '🍀 الحظ', render: g => g.isLucky ? <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">🍀 حظ</span> : '-' },
@@ -462,12 +473,8 @@ export default function GiftsPage() {
           activeTab === 'all'
             ? gifts
             : gifts.filter(g => {
-                if (activeTab === 'lucky') return g.isLucky || g.type === 3 || g.categoryId === 'lucky';
-                if (activeTab === 'normal') return g.categoryId === 'normal' || (!g.isLucky && !g.isCpGift && (g.type === 1 || !g.type));
-                if (activeTab === 'luxury') return g.categoryId === 'luxury' || g.type === 2;
-                if (activeTab === 'cp') return g.isCpGift || g.categoryId === 'cp' || g.type === 5;
-                if (activeTab === 'backpack') return g.categoryId === 'backpack' || g.type === 4;
-                return g.categoryId === activeTab;
+                const cat = categories.find(c => c.id === activeTab);
+                return cat ? giftMatchesTab(g, cat) : g.categoryId === activeTab;
               })
         }
         searchKeys={['name', 'id']}

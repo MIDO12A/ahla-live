@@ -1,4 +1,4 @@
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Search, X, Inbox } from 'lucide-react';
 import { useState, useMemo, ReactNode } from 'react';
 
 interface Column<T> {
@@ -31,7 +31,8 @@ export default function DataTable<T>({
     if (!search.trim() || !searchKeys) return data;
     const q = search.toLowerCase();
     return data.filter((item: T) =>
-      (searchKeys as (keyof T)[]).some(key => String((item as Record<string, unknown>)[key as string] ?? '').toLowerCase().includes(q))
+      (searchKeys as (keyof T)[]).some(key =>
+        String((item as Record<string, unknown>)[key as string] ?? '').toLowerCase().includes(q))
     );
   }, [data, search, searchKeys]);
 
@@ -46,78 +47,100 @@ export default function DataTable<T>({
     });
   }, [filtered, sortKey, sortAsc]);
 
-  const totalPages = Math.ceil(sorted.length / pageSize);
-  const paged = sorted.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paged = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const hasActions = Boolean(onEdit || onDelete);
 
   const toggleSort = (key: string) => {
     if (sortKey === key) setSortAsc(a => !a);
     else { setSortKey(key); setSortAsc(true); }
   };
 
+  const actions = (item: T) => (
+    <div className="flex items-center justify-end gap-2">
+      {onEdit && (
+        <button onClick={() => onEdit(item)}
+          className="rounded-lg border border-indigo-500/25 bg-indigo-500/10 px-2.5 py-1 text-[10px] font-bold text-indigo-300 hover:bg-indigo-500/20">
+          Edit
+        </button>
+      )}
+      {onDelete && (
+        <button onClick={() => onDelete(item)}
+          className="rounded-lg border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-[10px] font-bold text-rose-300 hover:bg-rose-500/20">
+          Delete
+        </button>
+      )}
+    </div>
+  );
+
   return (
-    <div className="bg-[#141417] rounded-2xl border border-white/5">
-      <div className="p-4 border-b border-white/5 flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+    <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.025] shadow-2xl shadow-black/20 backdrop-blur-sm">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/6 bg-white/[0.02] p-3 sm:p-4">
+        <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
           <input
             type="text" value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search..."
-            className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 pl-9 pr-8 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600"
+            className="field w-full pl-9 pr-8"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
-              <X className="w-3 h-3" />
+            <button onClick={() => setSearch('')} aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-        <span className="text-[10px] text-slate-500">{sorted.length} items</span>
+        <span className="badge badge-ok mr-auto">{sorted.length} عنصر</span>
       </div>
-      <div className="overflow-x-auto">
+
+      {/* Desktop table */}
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-white/5">
+            <tr className="border-b border-white/8 bg-black/20">
               {columns.map(col => (
-                <th
-                  key={col.key}
-                  className={`text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3 ${col.sortable ? 'cursor-pointer hover:text-white' : ''}`}
+                <th key={col.key}
+                  className={`p-3 text-right text-[10px] font-extrabold uppercase tracking-wider text-slate-500 ${col.sortable ? 'cursor-pointer select-none hover:text-white' : ''}`}
                   style={{ width: col.width }}
-                  onClick={() => col.sortable && toggleSort(col.key)}
-                >
-                  <span className="flex items-center gap-1">
+                  onClick={() => col.sortable && toggleSort(col.key)}>
+                  <span className="inline-flex items-center gap-1.5">
                     {col.label}
                     {col.sortable && sortKey === col.key && (
-                      <ChevronDown className={`w-3 h-3 transition-transform ${sortAsc ? '' : 'rotate-180'}`} />
+                      <ChevronDown className={`h-3 w-3 transition-transform ${sortAsc ? '' : 'rotate-180'}`} />
                     )}
                   </span>
                 </th>
               ))}
-              {(onEdit || onDelete) && <th className="text-right text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3 w-20">Actions</th>}
+              {hasActions && <th className="w-24 p-3 text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500">إجراءات</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={columns.length + 1} className="text-center py-12 text-slate-500">Loading...</td></tr>
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="border-b border-white/5">
+                  {columns.map(col => <td key={col.key} className="p-3"><div className="skeleton h-4 w-full" /></td>)}
+                  {hasActions && <td className="p-3"><div className="skeleton h-4 w-16" /></td>}
+                </tr>
+              ))
             ) : paged.length === 0 ? (
-              <tr><td colSpan={columns.length + 1} className="text-center py-12 text-slate-500">No data found</td></tr>
+              <tr><td colSpan={columns.length + (hasActions ? 1 : 0)} className="py-16 text-center">
+                <Inbox className="mx-auto mb-3 h-8 w-8 text-slate-700" />
+                <p className="text-xs text-slate-500">لا توجد بيانات لعرضها</p>
+              </td></tr>
             ) : (
               paged.map((item, idx) => (
-                <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <tr key={idx} className="border-b border-white/5 transition-colors hover:bg-white/[0.035]">
                   {columns.map(col => (
-                    <td key={col.key} className="p-3 text-white">
+                    <td key={col.key} className="p-3 text-slate-200">
                       {col.render ? col.render(item) : String((item as Record<string, unknown>)[col.key] ?? '')}
                     </td>
                   ))}
-                  {(onEdit || onDelete) && (
-                    <td className="p-3 text-right sticky right-0 bg-[#141417] shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.5)]">
-                      <div className="flex items-center justify-end gap-2">
-                        {onEdit && (
-                          <button onClick={() => onEdit(item)} className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold">Edit</button>
-                        )}
-                        {onDelete && (
-                          <button onClick={() => onDelete(item)} className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold">Delete</button>
-                        )}
-                      </div>
+                  {hasActions && (
+                    <td className="sticky right-0 bg-[#111114] p-3 text-left shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.6)]">
+                      {actions(item)}
                     </td>
                   )}
                 </tr>
@@ -126,11 +149,47 @@ export default function DataTable<T>({
           </tbody>
         </table>
       </div>
+
+      {/* Mobile cards */}
+      <div className="divide-y divide-white/5 md:hidden">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="space-y-2 p-4"><div className="skeleton h-4 w-1/2" /><div className="skeleton h-4 w-full" /></div>
+          ))
+        ) : paged.length === 0 ? (
+          <div className="py-14 text-center">
+            <Inbox className="mx-auto mb-3 h-8 w-8 text-slate-700" />
+            <p className="text-xs text-slate-500">لا توجد بيانات لعرضها</p>
+          </div>
+        ) : (
+          paged.map((item, idx) => (
+            <div key={idx} className="space-y-2.5 p-4">
+              {columns.map(col => (
+                <div key={col.key} className="flex items-start justify-between gap-4">
+                  <span className="shrink-0 text-[10px] font-bold text-slate-500">{col.label}</span>
+                  <span className="min-w-0 break-words text-left text-xs font-semibold text-slate-200">
+                    {col.render ? col.render(item) : String((item as Record<string, unknown>)[col.key] ?? '')}
+                  </span>
+                </div>
+              ))}
+              {hasActions && <div className="pt-1">{actions(item)}</div>}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="p-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-500">
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-2 py-1 rounded hover:bg-white/5 disabled:opacity-30">Prev</button>
-          <span>Page {page} of {totalPages}</span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="px-2 py-1 rounded hover:bg-white/5 disabled:opacity-30">Next</button>
+        <div className="flex items-center justify-between gap-3 border-t border-white/6 bg-black/20 px-3 py-2.5 sm:px-4">
+          <button disabled={currentPage <= 1} onClick={() => setPage(p => p - 1)}
+            className="inline-flex items-center gap-1 rounded-lg border border-white/8 bg-white/5 px-2.5 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-white/10 disabled:opacity-30">
+            <ChevronRight className="h-3.5 w-3.5" /> السابق
+          </button>
+          <span className="font-mono text-[10px] text-slate-500">{currentPage} / {totalPages}</span>
+          <button disabled={currentPage >= totalPages} onClick={() => setPage(p => p + 1)}
+            className="inline-flex items-center gap-1 rounded-lg border border-white/8 bg-white/5 px-2.5 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-white/10 disabled:opacity-30">
+            التالي <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>

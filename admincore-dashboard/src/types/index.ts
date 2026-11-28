@@ -411,6 +411,17 @@ export interface NotificationPayload {
   status: 'draft' | 'sent';
 }
 
+export interface LevelRewardItem {
+  id?: string;
+  type: 'coins' | 'diamonds' | 'store_item' | 'frame' | 'badge' | 'custom';
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  amount?: number;
+  itemId?: string;
+  isSpecialGrid?: boolean;
+}
+
 export interface LevelConfig {
   level: number;
   minExp: number;
@@ -420,7 +431,15 @@ export interface LevelConfig {
   imageUrl?: string;
   frameUrl?: string;
   badgeUrl?: string;
-  rewards: { coins?: number; diamonds?: number; frame?: string; badge?: string };
+  rewards: {
+    coins?: number;
+    diamonds?: number;
+    frame?: string;
+    badge?: string;
+    items?: LevelRewardItem[];
+    privileges?: LevelRewardItem[];
+    [key: string]: unknown;
+  };
   progressColor?: string;
   boxImageUrl?: string;
 }

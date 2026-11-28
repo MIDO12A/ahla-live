@@ -366,7 +366,7 @@ export default function UsersPage() {
               </div>
               <div>
                 <h3 className="text-white font-semibold text-sm">{editing.name || 'Unnamed'}</h3>
-                <p className="text-[10px] text-slate-500 font-mono">#{editing.customId} · {editing.uid.slice(0, 8)}</p>
+                <p className="text-[10px] text-slate-500 font-mono">#{editing.customId}</p>
                 {(() => {
                   const rawDate = editing.createdAt || (editing as any).created_at;
                   if (!rawDate) return null;
@@ -945,15 +945,39 @@ export default function UsersPage() {
                           <span className="text-xs font-bold text-white flex items-center gap-1.5">
                             👥 عدد الحسابات المسجلة من نفس هذا الهاتف:
                           </span>
-                          {!dId ? (
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">
-                              بانتظار تسجيل البصمة عند فتح التطبيق
-                            </span>
-                          ) : (
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${sameDeviceUsers.length >= 2 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                              {sameDeviceUsers.length > 0 ? `${sameDeviceUsers.length} / 2 حسابات` : 'حساب واحد'}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {dId && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!confirm('هل تريد فصل هذا الحساب عن هذا الجهاز وتوليد بصمة فريدة له؟')) return;
+                                  try {
+                                    const newUniqueDeviceId = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+                                    await updateUser(editing.uid, {
+                                      deviceId: newUniqueDeviceId,
+                                    });
+                                    handleUpdate('deviceId', newUniqueDeviceId);
+                                    showMsg('✅ تم فصل الحساب وتعيين معرف فريد له بنجاح!');
+                                    loadUsers();
+                                  } catch (e: any) {
+                                    alert('فشل فصل الجهاز: ' + (e?.message || e));
+                                  }
+                                }}
+                                className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 px-2 py-0.5 rounded transition"
+                              >
+                                🔌 فصل الحساب عن هذا الجهاز
+                              </button>
+                            )}
+                            {!dId ? (
+                              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">
+                                بانتظار تسجيل البصمة عند فتح التطبيق
+                              </span>
+                            ) : (
+                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${sameDeviceUsers.length >= 2 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                                {sameDeviceUsers.length > 0 ? `${sameDeviceUsers.length} / 2 حسابات` : 'حساب واحد'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {sameDeviceUsers.length > 0 ? (
                           <div className="space-y-1.5">
@@ -963,11 +987,32 @@ export default function UsersPage() {
                                   <span className="text-white font-medium">{du.name}</span>
                                   <span className="text-slate-400 font-mono text-[11px]">({du.email || 'بدون بريد'})</span>
                                 </div>
-                                {du.uid === editing.uid ? (
-                                  <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded">الحساب الحالي</span>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">حساب مرتبط بنفس الهاتف</span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {du.uid === editing.uid ? (
+                                    <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded">الحساب الحالي</span>
+                                  ) : (
+                                    <>
+                                      <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">حساب مرتبط بنفس الهاتف</span>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          if (!confirm(`هل تريد فصل حساب "${du.name}" نهائياً عن هذا الهاتف وتعيين بصمة جديدة له؟`)) return;
+                                          try {
+                                            const newUniqueId = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+                                            await updateUser(du.uid, { deviceId: newUniqueId });
+                                            showMsg(`✅ تم فصل حساب "${du.name}" بنجاح!`);
+                                            loadUsers();
+                                          } catch (err: any) {
+                                            alert('فشل الفصل: ' + (err?.message || err));
+                                          }
+                                        }}
+                                        className="text-[9px] bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 px-1.5 py-0.5 rounded transition"
+                                      >
+                                        فصل
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>

@@ -31,6 +31,7 @@ import {
 import { supabase } from '../lib/supabase';
 import ImageUpload from '../components/ImageUpload';
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
+import GiftNavTabs from '../components/GiftNavTabs';
 
 interface LuckyPool {
   id: string;
@@ -461,6 +462,59 @@ export default function LuckyGiftsManager() {
     setWinRate(Number(Math.max(0, Math.min(100, 100 - lossProb)).toFixed(1)));
   };
 
+  const [instantSaving, setInstantSaving] = useState(false);
+  const [instantSuccess, setInstantSuccess] = useState(false);
+
+  const saveWinRateDirect = async (customRate?: number) => {
+    const targetRate = customRate !== undefined ? customRate : winRate;
+    const clamped = Math.max(0, Math.min(100, Number(targetRate)));
+    setInstantSaving(true);
+    try {
+      // 1. تحديث محفظة الحظ بالسيرفر
+      await supabase.from('lucky_pools').upsert({
+        id: 'main',
+        win_rate: clamped,
+        loss_rate: Number((100 - clamped).toFixed(1)),
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+      // 2. تحديث إعدادات التطبيق
+      await supabase.from('app_config').upsert({
+        key: 'lucky_gift_win_rate',
+        value: clamped,
+      }, { onConflict: 'key' });
+
+      // 3. تحديث جدول الهدايا لجميع هدايا الحظ
+      await supabase.from('gifts').update({
+        lucky_rtp: clamped,
+        win_rate: clamped,
+      }).eq('is_lucky', true);
+
+      // 4. تحديث lucky_box_config
+      await supabase.from('app_config').upsert({
+        key: 'lucky_box_config',
+        value: {
+          ...visuals,
+          winRate: clamped,
+          lossRate: Number((100 - clamped).toFixed(1)),
+          oddsTiers,
+          targetPercentage,
+          bannerMinMultiplier,
+          updated_at: new Date().toISOString(),
+        },
+      }, { onConflict: 'key' });
+
+      setInstantSuccess(true);
+      setTimeout(() => setInstantSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('saveWinRateDirect error:', err);
+      alert('حدث خطأ أثناء حفظ نسبة المكسب: ' + (err?.message || err));
+    } finally {
+      setInstantSaving(false);
+    }
+  };
+
   const handleRefillPool = async (customAmt?: number) => {
     const amt = customAmt ?? refillAmount;
     if (!amt || amt <= 0) {
@@ -559,6 +613,16 @@ export default function LuckyGiftsManager() {
 
         // Save custom gift panel buttons
         await supabase.from('app_config').upsert({
+          key: 'lucky_gift_win_rate',
+          value: winRate,
+        }, { onConflict: 'key' });
+
+        await supabase.from('gifts').update({
+          lucky_rtp: winRate,
+          win_rate: winRate,
+        }).eq('is_lucky', true);
+
+        await supabase.from('app_config').upsert({
           key: 'gift_panel_send_btn_image',
           value: sendBtnImage,
         }, { onConflict: 'key' });
@@ -584,6 +648,7 @@ export default function LuckyGiftsManager() {
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto" dir="rtl">
+      <GiftNavTabs />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
@@ -1027,16 +1092,19 @@ export default function LuckyGiftsManager() {
               {/* أزرار الأوضاع السريعة */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 {[
-                  { label: '🚫 خسارة تامة (0%)', val: 0, color: 'bg-rose-600 hover:bg-rose-700 text-white' },
+                  { label: '🚫 خسارة تامة (0% مكسب)', val: 0, color: 'bg-rose-600 hover:bg-rose-700 text-white' },
                   { label: '🔻 خسارة 90% (مكسب 10%)', val: 10, color: 'bg-orange-600 hover:bg-orange-700 text-white' },
                   { label: '⚖️ مكسب 30% (خسارة 70%)', val: 30, color: 'bg-amber-600 hover:bg-amber-700 text-white' },
-                  { label: '🎯 مكسب 40% (خسارة 60%)', val: 40, color: 'bg-yellow-600 hover:bg-yellow-700 text-black' },
-                  { label: '🎁 مكسب 50% (متوازن)', val: 50, color: 'bg-cyan-600 hover:bg-cyan-700 text-white' },
+                  { label: '🎯 مكسب 50% (متوازن)', val: 50, color: 'bg-cyan-600 hover:bg-cyan-700 text-white' },
                   { label: '🌟 مكسب 70% (سخي جداً)', val: 70, color: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
+                  { label: '🔥 مكسب مؤكد 100% (فوز دائم)', val: 100, color: 'bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold' },
                 ].map(mode => (
                   <button
                     key={mode.val}
-                    onClick={() => applyWinRate(mode.val)}
+                    onClick={() => {
+                      applyWinRate(mode.val);
+                      saveWinRateDirect(mode.val);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
                       winRate === mode.val
                         ? `${mode.color} border-white/40 shadow-lg shadow-white/10 ring-2 ring-white/30`
@@ -1078,6 +1146,44 @@ export default function LuckyGiftsManager() {
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-bold">%</span>
                 </div>
+              </div>
+            </div>
+
+            {/* زر التطبيق المباشر السريع وتأكيد الحالة */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/5">
+              <div className="text-xs">
+                {winRate === 0 ? (
+                  <span className="text-rose-400 font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                    الوضع المطبق: خسارة تامة 100% (0% مكسب - جميع اللاعبين بدون أي ربح إطلاقاً "يخسرو يخسرو")
+                  </span>
+                ) : winRate === 100 ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    الوضع المطبق: مكسب مؤكد 100% (جميع السحوبات تفوز بمضاعف حقيقي ≥ 2X بدون أي خسارة)
+                  </span>
+                ) : (
+                  <span className="text-slate-300">
+                    احتمالية الفوز الحالية: <strong className="text-emerald-400 font-bold">{winRate}%</strong> مقابل خسارة: <strong className="text-rose-400 font-bold">{(100 - winRate).toFixed(1)}%</strong>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {instantSuccess && (
+                  <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> تم الحفظ والتطبيق فوراً في السيرفر!
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => saveWinRateDirect()}
+                  disabled={instantSaving}
+                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-black font-extrabold px-5 py-2 rounded-xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {instantSaving ? 'جارٍ التطبيق بالسيرفر...' : 'تطبيق وحفظ نسبة المكسب فوراً بالسيرفر ⚡'}
+                </button>
               </div>
             </div>
           </div>

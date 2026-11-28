@@ -1,9 +1,9 @@
 import { useContext, useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { I18nContext, langs } from '../lib/i18n';
-import { getCloudinaryStatus, saveCloudinaryConfig, uploadLoginMedia, uploadLoginLogo } from '../lib/storage';
+import { getCloudinaryStatus, saveCloudinaryConfig, uploadLoginMedia, uploadLoginLogo, getActiveStorageProvider, setActiveStorageProvider, StorageProvider } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette, ShieldAlert, ShieldCheck, CheckCircle2, Upload, Film, Image as ImageIcon, Trash2, Eye, Play, Check, FileCode, Video } from 'lucide-react';
+import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette, ShieldAlert, ShieldCheck, CheckCircle2, Upload, Film, Image as ImageIcon, Trash2, Eye, Play, Check, FileCode, Video, Cloud, Server, RefreshCw } from 'lucide-react';
 
 
 export default function Settings() {
@@ -24,6 +24,10 @@ export default function Settings() {
   const [luckyGiftTargetPct, setLuckyGiftTargetPct] = useState<number>(10.0);
   const [luckySaving, setLuckySaving] = useState(false);
 
+  // Cloud & Supabase Storage Provider State
+  const [storageProvider, setStorageProvider] = useState<StorageProvider>(getActiveStorageProvider());
+  const [storageSaving, setStorageSaving] = useState(false);
+
   useEffect(() => {
     const status = getCloudinaryStatus();
     setCloudName(status.cloudName);
@@ -40,6 +44,17 @@ export default function Settings() {
     }
     supabase.from('app_config').select('value').eq('key', 'vip_url').maybeSingle().then(res => {
       if (res?.data?.value) setVipUrl(String(res.data.value));
+    });
+
+    // تحميل مزود التخزين النشط
+    supabase.from('app_config').select('value').eq('key', 'storage_provider').maybeSingle().then(res => {
+      if (res?.data?.value) {
+        const val = String(res.data.value).toLowerCase() as StorageProvider;
+        if (val === 'cloudinary' || val === 'supabase') {
+          setStorageProvider(val);
+          localStorage.setItem('active_storage_provider', val);
+        }
+      }
     });
 
     // تحميل نسبة هدايا الحظ للتارجت
@@ -270,6 +285,22 @@ export default function Settings() {
     saveCloudinaryConfig(cloudName, apiKey, apiSecret);
     setSaving(false);
     alert(t('cloudinary.save') + ' ✓');
+  };
+
+  const handleToggleStorageProvider = async (nextProvider: StorageProvider) => {
+    setStorageSaving(true);
+    try {
+      await setActiveStorageProvider(nextProvider);
+      setStorageProvider(nextProvider);
+      alert(nextProvider === 'supabase'
+        ? 'تم تحويل التخزين إلى سوبابيز (Supabase Storage) وإيقاف الرفع إلى كلوديناري بنجاح ✓'
+        : 'تم تفعيل الرفع إلى كلوديناري (Cloudinary) بنجاح ✓'
+      );
+    } catch (e) {
+      alert('فشل تغيير مزود التخزين: ' + (e as Error).message);
+    } finally {
+      setStorageSaving(false);
+    }
   };
 
   const handleSaveLuckyTargetPct = async () => {
@@ -1058,15 +1089,166 @@ export default function Settings() {
           </div>
         </div>
 
-        <div>
-          <label className="block text-[10px] uppercase text-slate-400 font-bold mb-2">{t('settings.cloudinary')}</label>
-          <div className="bg-[#161618] rounded-lg border border-white/5 p-4 space-y-3">
-            <p className="text-xs">
-              {status.configured
-                ? <><span className="text-green-400">✓</span> {lang === 'ar' ? 'مفعل' : 'Active'} ({status.cloudName})</>
-                : <><span className="text-rose-400">✗</span> {lang === 'ar' ? 'غير مفعل' : 'Not configured'}</>
-              }
-            </p>
+        {/* قسم إدارة مزود التخزين السحابي (Supabase Storage & Cloudinary) */}
+        <div className="bg-[#161618] rounded-2xl border border-white/10 p-5 space-y-5 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+            <div>
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">
+                  مزود التخزين ورفع الملفات (Cloud Storage Provider) 📦
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                التحكم المباشر في وجهة رفع الصور وملفات الهدايا و SVGA بين سوبابيز وكلوديناري، مع إمكانية التبديل بنقرة زر واحدة.
+              </p>
+            </div>
+
+            {/* حالة المزود الحالي */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400">الوجهة النشطة حالياً:</span>
+              <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+                storageProvider === 'supabase'
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+              }`}>
+                {storageProvider === 'supabase' ? (
+                  <>
+                    <Server className="w-3.5 h-3.5" />
+                    <span>Supabase Storage (مفعل) ⚡</span>
+                  </>
+                ) : (
+                  <>
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>Cloudinary (مفعل) ☁️</span>
+                  </>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* أزرار التحويل والتبديل المباشر */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* خيار سوبابيز ستورج */}
+            <div 
+              onClick={() => handleToggleStorageProvider('supabase')}
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                storageProvider === 'supabase'
+                  ? 'bg-emerald-500/10 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                  : 'bg-[#1c1c1f] border-white/5 hover:border-white/20 opacity-70 hover:opacity-100'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-lg ${storageProvider === 'supabase' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400'}`}>
+                    <Server className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      Supabase Storage (سوبابيز)
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">موصى به</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      تخزين سريع جداً داخل مشروع سوبابيز، يدعم ملفات SVGA والصور بدون أي مشاكل كورس.
+                    </p>
+                  </div>
+                </div>
+                {storageProvider === 'supabase' && (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                )}
+              </div>
+              <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">باكيت التخزين: <code className="text-emerald-400 font-mono">avatars</code></span>
+                <span className={`font-bold ${storageProvider === 'supabase' ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  {storageProvider === 'supabase' ? '● نشط للرفع' : 'انقر للتحويل إليه'}
+                </span>
+              </div>
+            </div>
+
+            {/* خيار كلوديناري */}
+            <div 
+              onClick={() => handleToggleStorageProvider('cloudinary')}
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                storageProvider === 'cloudinary'
+                  ? 'bg-blue-500/10 border-blue-500/50 shadow-lg shadow-blue-500/10'
+                  : 'bg-[#1c1c1f] border-white/5 hover:border-white/20 opacity-70 hover:opacity-100'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-lg ${storageProvider === 'cloudinary' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400'}`}>
+                    <Cloud className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      Cloudinary (كلوديناري)
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      تخزين خارجي عبر حساب Cloudinary، متاح كخيار بديل عند الرغبة في التبديل إليه.
+                    </p>
+                  </div>
+                </div>
+                {storageProvider === 'cloudinary' && (
+                  <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />
+                )}
+              </div>
+              <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">الحساب: <code className="text-blue-400 font-mono">{cloudName || 'r5kohqhd'}</code></span>
+                <span className={`font-bold ${storageProvider === 'cloudinary' ? 'text-blue-400' : 'text-slate-500'}`}>
+                  {storageProvider === 'cloudinary' ? '● نشط للرفع' : 'انقر للتحويل إليه'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* زر تبديل سريع صريح مع رسالة توضيحية */}
+          <div className="bg-[#1c1c1f] p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-slate-300">
+              {storageProvider === 'supabase' ? (
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>الرفع الحالي موجه بالكامل إلى <strong>سوبابيز ستورج</strong>، وتم إغلاق الرفع إلى كلوديناري.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-blue-400">
+                  <Cloud className="w-4 h-4 shrink-0" />
+                  <span>الرفع الحالي موجه إلى <strong>كلوديناري</strong>. يمكنك إيقافه والتحويل لسوبابيز بنقرة زر.</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => handleToggleStorageProvider(storageProvider === 'supabase' ? 'cloudinary' : 'supabase')}
+              disabled={storageSaving}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                storageProvider === 'supabase'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${storageSaving ? 'animate-spin' : ''}`} />
+              <span>
+                {storageProvider === 'supabase'
+                  ? 'التحويل للرفع إلى كلوديناري'
+                  : 'إغلاق الرفع لكلوديناري والتحويل لسوبابيز ⚡'}
+              </span>
+            </button>
+          </div>
+
+          {/* إعدادات مفاتيح Cloudinary (تبقى متاحة للتحكم بها متى أردت) */}
+          <div className="pt-2 border-t border-white/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] uppercase text-slate-400 font-bold">
+                إعدادات حساب كلوديناري (Cloudinary Credentials)
+              </label>
+              <p className="text-[10px] text-slate-500">
+                {status.configured
+                  ? <span className="text-green-400 font-mono">✓ Configured ({status.cloudName})</span>
+                  : <span className="text-rose-400 font-mono">✗ Not Configured</span>
+                }
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.cloudName')}</label>
@@ -1081,10 +1263,13 @@ export default function Settings() {
                 <input type="password" value={apiSecret} onChange={e => setApiSecret(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="API Secret" />
               </div>
             </div>
-            <p className="text-[9px] text-slate-600">{t('cloudinary.description')}</p>
-            <button onClick={handleSaveCloudinary} disabled={saving} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-[10px] text-white font-semibold rounded-lg flex items-center gap-1">
-              <Save className="w-3 h-3" /> {saving ? t('saving') : t('cloudinary.save')}
-            </button>
+
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-[9px] text-slate-500">{t('cloudinary.description')}</p>
+              <button onClick={handleSaveCloudinary} disabled={saving} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-[10px] text-white font-semibold rounded-lg flex items-center gap-1 cursor-pointer">
+                <Save className="w-3 h-3" /> {saving ? t('saving') : t('cloudinary.save')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
